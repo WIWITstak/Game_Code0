@@ -1,0 +1,61 @@
+{
+  "name": "mars-awakening",
+  "productName": "MARS AWAKENING",
+  "version": "0.1.0",
+  "description": "Luna colony strategy game (working title)",
+  "private": true,
+  "main": "electron-main.js",
+  "scripts": {
+    "start": "electron .",
+    "serve": "node server.js",
+    "editor": "electron tools/editor.js",
+    "dist": "electron-builder",
+    "dist:dir": "electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.studio.marsawakening",
+    "productName": "MARS AWAKENING",
+    "artifactName": "${productName}-${version}-${os}.${ext}",
+    "directories": { "output": "dist" },
+    "files": [
+      "electron-main.js",
+      "server.js",
+      "index.html",
+      "styles.css",
+      "view.js",
+      "game-data.js",
+      "game-economy.js",
+      "game-i18n.js",
+      "game-orbits.js",
+      "game-planetglobe.js",
+      "game-preload.js",
+      "game-save.js",
+      "game-story.js",
+      "game-ally.js",
+      "game-solarsystem3d.js",
+      "game-sphererender.js",
+      "game.js",
+      "assets/**/*",
+      "*.mp3",
+      "!**/*.bak",
+      "!dist/**",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}"
+    ],
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "assets/icon.ico"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Game"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

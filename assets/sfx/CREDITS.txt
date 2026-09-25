@@ -1,0 +1,7 @@
+UI click sounds
+Source: Kenney "Interface Sounds" — https://kenney.nl/assets/interface-sounds
+License: Creative Commons Zero (CC0) — https://creativecommons.org/publicdomain/zero/1.0/
+
+Files: click.mp3 (click_001), confirm.mp3 (confirmation_001), back.mp3 (back_002)
+Downloaded as .ogg 2026-09-04, re-encoded to .mp3 to match the project's existing
+audio format. Attribution not required, credited anyway.

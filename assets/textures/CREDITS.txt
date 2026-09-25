@@ -1,0 +1,36 @@
+Planet / Sun / Moon surface maps
+Source: Solar System Scope — https://www.solarsystemscope.com/textures/
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+
+Files: 2k_mercury, 2k_venus_surface, 2k_earth_daymap, 2k_earth_nightmap,
+2k_earth_clouds, 2k_mars, 2k_jupiter, 2k_saturn, 2k_uranus, 2k_neptune,
+2k_sun, 2k_moon, 2k_saturn_ring_alpha, 2k_ceres_fictional,
+2k_makemake_fictional, 2k_stars, 2k_stars_milky_way, 8k_stars_milky_way.
+
+Downloaded 2026-09-02. Used as equirectangular surface textures on the
+in-game solar-system view. "_fictional" maps are artistic approximations.
+
+Added 2026-09-06 (SSS, same CC BY 4.0):
+- 2k_earth_specular_map.jpg — from SSS 2k_earth_specular_map.tif, greyscale ocean
+  mask, converted to JPG. Drives the ocean sun-glint in Earth's day/night shader.
+- 2k_venus_atmosphere.jpg  — SSS Venus cloud deck (replaces the radar surface
+  map in the solar-system view).
+
+Real elevation data (replaced the earlier fake "high-pass of albedo" maps),
+added 2026-09-06:
+- 2k_earth_normal_map.png — Sobel normal map computed from GEBCO_08 global
+  elevation+bathymetry (NASA Visible Earth / eoimages.gsfc.nasa.gov, image
+  #73934, public domain; gebco_08_rev_elev_21600x10800.png).
+- 2k_mercury_height.jpg — MESSENGER USGS Global DEM 665m
+  (Mercury_Messenger_USGS_DEM_Global_665m_v2.tif), USGS Astrogeology PDS Annex,
+  public domain. Decimated to 2048x1024, percentile-clipped, used as bumpMap.
+- 2k_mars_height.jpg — MGS MOLA colour shaded relief, merged global 463m
+  (NASA Trek layer Mars_MGS_MOLA_ClrShade_merge_global_463m, WMTS z4 8192x4096
+  stitched then desaturated), public domain.
+- 2k_moon_height.jpg — LRO LOLA global shaded relief 128ppd
+  (Lunar_LRO_LOLA_Shade_Global_128ppd_v04.tif, USGS Astrogeology PDS Annex),
+  public domain.
+The Mars/Moon maps are hillshades of the real LOLA/MOLA terrain (a slight NW
+lighting bias is baked in); Mercury is the raw DEM. All greyscale, used as
+bumpMaps on the MeshStandardMaterial bodies; strength = debug panel "Relief".

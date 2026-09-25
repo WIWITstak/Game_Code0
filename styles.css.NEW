@@ -1,0 +1,116 @@
+/* ============ page shell ============ */
+html, body { height: 100%; }
+body { margin: 0; }
+#dc-root { height: 100%; }
+[hidden] { display: none !important; }   /* beats inline display:contents on data-if wrappers */
+
+/* Boot splash — shown instantly, driven and removed by game-preload.js once
+   every texture / track / shader is loaded and both 3D scenes are warmed. */
+#boot-splash{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 32% 40%,#12183a 0%,#0a0f1c 58%,#05070f 100%);
+  font-family:'Space Grotesk',system-ui,sans-serif;opacity:1;transition:opacity .55s ease}
+#boot-splash.bs-done{opacity:0;pointer-events:none}
+#boot-splash .bs-title{font-size:34px;font-weight:700;letter-spacing:.14em;color:#eef2ff;margin-bottom:10px;text-align:center}
+#boot-splash .bs-sub{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.2em;
+  text-transform:uppercase;color:#6b7db0;margin-bottom:44px;text-align:center}
+#boot-splash .bs-bar{width:280px;height:2px;background:rgba(120,140,200,.16);overflow:hidden}
+#boot-splash .bs-fill{height:100%;width:0;background:#4fc3bd;transition:width .35s ease}
+#boot-splash .bs-status{margin-top:16px;font-family:'JetBrains Mono',monospace;font-size:10px;
+  letter-spacing:.12em;text-transform:uppercase;color:#4a597e}
+
+/* ============ design tokens ============ */
+:root{
+  --teal:oklch(74% 0.135 178);
+  --teal-dim:oklch(74% 0.135 178 / 0.7);
+  --teal-mid:oklch(56% 0.13 178);
+  --amber:oklch(78% 0.14 72);
+  --green:oklch(70% 0.13 150);
+
+  --text:oklch(97% 0.004 235);
+  --text-2:oklch(85% 0.006 235);
+  --muted:oklch(64% 0.012 235);
+  --muted-2:oklch(52% 0.012 235);
+
+  --line:oklch(92% 0.01 235 / 0.14);
+  --line-soft:oklch(92% 0.01 235 / 0.1);
+
+  --fill:oklch(30% 0.02 235);
+  --btn-bg:oklch(26% 0.02 235 / 0.5);
+  --panel:oklch(20% 0.024 235 / 0.95);
+}
+
+body{margin:0}
+a{color:var(--teal)}
+a:hover{color:oklch(84% 0.09 178)}
+
+/* ============ scrollbars ============ */
+/* Firefox */
+*{scrollbar-width:thin;scrollbar-color:oklch(40% 0.03 235 / 0.75) oklch(14% 0.018 235 / 0.5)}
+/* WebKit / Chromium */
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:oklch(13% 0.018 235 / 0.5)}
+::-webkit-scrollbar-thumb{
+  background:oklch(38% 0.028 235 / 0.85);
+  border:2px solid oklch(13% 0.018 235 / 0.5);
+  border-radius:6px;
+}
+::-webkit-scrollbar-thumb:hover{background:var(--teal-mid)}
+::-webkit-scrollbar-thumb:active{background:var(--teal)}
+::-webkit-scrollbar-corner{background:transparent}
+
+/* ============ keyframes ============ */
+@keyframes badgePulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.18);opacity:0.65}}
+@keyframes overlayIn{from{opacity:0;transform:scale(0.985)}to{opacity:1;transform:scale(1)}}
+@keyframes panelIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes sunFlicker{0%,100%{opacity:0.9;transform:scale(1)}50%{opacity:1;transform:scale(1.04)}}
+@keyframes sysSelPulse{0%,100%{opacity:0.95;transform:translate(-50%,-50%) scale(1)}50%{opacity:0.4;transform:translate(-50%,-50%) scale(1.14)}}
+@keyframes twinkle{0%,100%{opacity:0.35}50%{opacity:0.9}}
+@keyframes spinSurf{to{transform:rotate(360deg)}}
+@keyframes sunPulse{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:0.85}50%{transform:translate(-50%,-50%) scale(1.08);opacity:1}}
+@keyframes spinCenter{from{transform:translate(-50%,-50%) rotate(0)}to{transform:translate(-50%,-50%) rotate(360deg)}}
+@keyframes spinCenterRev{from{transform:translate(-50%,-50%) rotate(0)}to{transform:translate(-50%,-50%) rotate(-360deg)}}
+@keyframes conveyorMove{to{background-position:22px 0}}
+@keyframes pipeGlow{0%,100%{box-shadow:0 0 5px oklch(74% 0.135 178 / 0.45)}50%{box-shadow:0 0 10px oklch(74% 0.135 178 / 0.8)}}
+
+/* build-viewport connector styling (per-instance colour/size stays inline) */
+.conveyor-strip{background-image:repeating-linear-gradient(45deg, transparent 0 7px, oklch(20% 0.02 235 / 0.4) 7px 14px);animation:conveyorMove 0.5s linear infinite}
+.pipe-glow{border-radius:4px;animation:pipeGlow 2.4s ease-in-out infinite}
+
+/* haulers — motion-path carts on roads (offset-path/dur/delay/direction inline) */
+@keyframes haulRun{to{offset-distance:100%}}
+.hauler{position:absolute;left:0;top:0;width:7px;height:7px;border-radius:2px;background:oklch(84% 0.13 88);box-shadow:0 0 5px oklch(84% 0.13 88 / 0.7);offset-distance:0%;offset-rotate:0deg;animation-name:haulRun;animation-timing-function:linear;animation-iteration-count:infinite;z-index:5;pointer-events:none}
+
+/* ============ shared classes (static styling only;
+   dynamic values stay inline via {{ }}) ============ */
+
+.mono{font-family:'JetBrains Mono',monospace}
+.mono-muted{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted)}
+.mono-teal{font-family:'JetBrains Mono',monospace;color:var(--teal)}
+.muted{color:var(--muted)}
+
+/* key/value rows */
+.kv{display:flex;justify-content:space-between;font-size:12px}
+.kv-sm{display:flex;justify-content:space-between;font-size:11.5px}
+.kv-mb{display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px}
+.dot-row{display:flex;align-items:center;gap:5px}
+
+/* overlay chrome */
+.ov-title{font-size:22px;font-weight:700;letter-spacing:0.02em}
+.ov-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);margin-top:4px}
+.ov-close{background:none;border:1px solid oklch(92% 0.01 235 / 0.16);color:var(--text-2);font-size:13px;padding:8px 16px;cursor:pointer}
+.ov-close:hover{border-color:var(--teal-dim);color:var(--teal)}
+.section-label{font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+
+/* side panels (width/height stay inline) */
+.side-panel{position:absolute;top:69px;right:0;bottom:0;background:var(--panel);backdrop-filter:blur(16px);border-left:1px solid var(--line);padding:24px;z-index:20;overflow-y:auto;animation:panelIn 0.18s ease-out;box-sizing:border-box;pointer-events:auto}
+.panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}
+.panel-title{font-size:14px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase}
+.x-btn{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0}
+
+/* misc repeats */
+.bar{height:5px;background:var(--fill)}
+.hb-line{width:14px;height:1.5px;background:oklch(80% 0.008 235)}
+.stat-span{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-2)}
+.zoom-btn{width:26px;height:26px;background:oklch(23% 0.025 235 / 0.9);border:1px solid oklch(92% 0.01 235 / 0.18);color:oklch(85% 0.008 235);font-size:15px;line-height:1;cursor:pointer;padding:0}
+.zoom-btn:hover{border-color:var(--teal-dim)}
