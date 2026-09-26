@@ -1,0 +1,1493 @@
+
+
+<div style="width:100%;height:100vh;position:relative;overflow:hidden;background:oklch(9% 0.02 235)" data-ref="stageRef">
+<div style="position:absolute;width:1920px;height:1080px;transform-origin:top left;overflow:hidden;background:oklch(14% 0.02 235);color:oklch(97% 0.004 235);font-family:'Space Grotesk',system-ui,sans-serif;user-select:none" data-style="left:${stageLeft};top:${stageTop};transform:${stageTransform}">
+
+  <div style="position:absolute;inset:0;background:oklch(12% 0.018 235)"></div>
+
+  <!-- BUILD VIEWPORT — fills the whole screen behind the UI chrome (top bar,
+       panels, icon rail all float above it, like any real strategy game).
+       Drag to pan the colony (a world bigger than the screen) sideways.
+       Building placement is a plain click; roads/conveyors/pipes are laid by
+       click-dragging from one cell to another — never placed automatically. -->
+  <div style="position:absolute;inset:0;overflow:hidden" data-on="pointerdown:buildPointerDown;pointermove:buildPointerMove;pointerup:buildPointerUp;pointerleave:buildPointerUp" data-style="cursor:${buildCursor}">
+    <div style="position:absolute;background:repeating-linear-gradient(90deg, oklch(92% 0.01 235 / 0.13) 0px 2px, transparent 2px 240px), repeating-linear-gradient(0deg, oklch(92% 0.01 235 / 0.13) 0px 2px, transparent 2px 240px), repeating-linear-gradient(90deg, oklch(92% 0.01 235 / 0.06) 0px, oklch(92% 0.01 235 / 0.06) 1px, transparent 1px, transparent 60px), repeating-linear-gradient(0deg, oklch(92% 0.01 235 / 0.06) 0px, oklch(92% 0.01 235 / 0.06) 1px, transparent 1px, transparent 60px), oklch(16% 0.02 235);border:1px solid oklch(92% 0.01 235 / 0.12)" data-style="left:${buildWorldLeft};top:${buildWorldTop};width:${buildWorldW};height:${buildWorldH}">
+
+      <!-- site-boundary hazard frame around the buildable world edge -->
+      <div style="position:absolute;left:0;top:0;width:100%;height:9px;background:repeating-linear-gradient(45deg, oklch(75% 0.14 75 / 0.55) 0 8px, oklch(18% 0.02 235 / 0.8) 8px 16px);z-index:2;pointer-events:none"></div>
+      <div style="position:absolute;left:0;bottom:0;width:100%;height:9px;background:repeating-linear-gradient(45deg, oklch(75% 0.14 75 / 0.55) 0 8px, oklch(18% 0.02 235 / 0.8) 8px 16px);z-index:2;pointer-events:none"></div>
+      <div style="position:absolute;left:0;top:0;width:9px;height:100%;background:repeating-linear-gradient(45deg, oklch(75% 0.14 75 / 0.55) 0 8px, oklch(18% 0.02 235 / 0.8) 8px 16px);z-index:2;pointer-events:none"></div>
+      <div style="position:absolute;right:0;top:0;width:9px;height:100%;background:repeating-linear-gradient(45deg, oklch(75% 0.14 75 / 0.55) 0 8px, oklch(18% 0.02 235 / 0.8) 8px 16px);z-index:2;pointer-events:none"></div>
+
+      <!-- ORE DEPOSITS: a Mining Rig only produces once built exactly on one -->
+      <template data-for="dep in deposits">
+        <div style="position:absolute;display:flex;align-items:center;justify-content:center;z-index:1;box-sizing:border-box;pointer-events:none" data-style="left:${dep.leftPx};top:${dep.topPx};width:${dep.sizePx};height:${dep.sizePx};background:${dep.bg};border:1px dashed ${dep.border}">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700" data-style="color:${dep.border}" data-text="dep.label"></span>
+        </div>
+      </template>
+
+      <!-- LOGISTICS ZONE: coverage of the hovered / selected depot or hub -->
+      <template data-for="lz in logiZones">
+        <div style="position:absolute;background:oklch(65% 0.06 195 / 0.06);z-index:2;box-sizing:border-box;pointer-events:none" data-style="left:${lz.leftPx};top:${lz.topPx};width:${lz.sizePx};height:${lz.sizePx};border:1.5px dashed ${lz.border}"></div>
+      </template>
+
+      <!-- LINKS: player-built roads / conveyors / pipelines -->
+      <template data-for="lk in buildLinks">
+        <div style="position:absolute;z-index:3;box-sizing:border-box" data-class="lk.cls" data-style="left:${lk.leftPx};top:${lk.topPx};width:${lk.wPx};height:${lk.hPx};background:${lk.bg};border:1px solid ${lk.border}"></div>
+      </template>
+      <!-- HAULERS: motion-path carts running the roads -->
+      <template data-for="hl in roadHaulers">
+        <div class="hauler" data-style="offset-path:path('${hl.path}');animation-duration:${hl.dur};animation-delay:${hl.delay};animation-direction:${hl.dir}"></div>
+      </template>
+      <div data-if="linkGhost.visible" hidden="" style="display:contents">
+        <template data-for="lg in linkGhost.segs">
+          <div style="position:absolute;opacity:0.75;z-index:38;box-sizing:border-box;pointer-events:none" data-style="left:${lg.leftPx};top:${lg.topPx};width:${lg.wPx};height:${lg.hPx};background:${lg.bg};border:1px dashed ${lg.border}"></div>
+        </template>
+      </div>
+      <div data-if="connectorStartGhost.visible" hidden="" style="display:contents">
+        <div style="position:absolute;border:2px solid var(--teal);z-index:38;box-sizing:border-box;pointer-events:none" data-style="left:${connectorStartGhost.leftPx};top:${connectorStartGhost.topPx};width:${connectorStartGhost.sizePx};height:${connectorStartGhost.sizePx}"></div>
+      </div>
+
+      <!-- PLACED BUILDINGS -->
+      <template data-for="pb in placedBuildings">
+        <div style="position:absolute;transform:translate(-50%,-50%);z-index:4;box-sizing:border-box;pointer-events:none" data-style="left:${pb.leftPx};top:${pb.topPx};width:${pb.cellPx};height:${pb.cellPx};background:${pb.zoneBg};border:1px solid ${pb.zoneBorder}"></div>
+        <button style="position:absolute;transform:translate(-50%,-50%);width:56px;height:56px;box-shadow:0 8px 14px oklch(4% 0.02 235 / 0.55);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;z-index:6;padding:0;box-sizing:border-box" data-on="click:pb.onSelect;mouseenter:pb.onEnter;mouseleave:pb.onLeave" data-style="left:${pb.leftPx};top:${pb.topPx};background:${pb.bg};border:1.5px solid ${pb.border};opacity:${pb.opacity}" data-attr="title:${pb.name}">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-attr="stroke:${pb.iconColor}">
+            <g data-for="ip in pb.icon"><path data-attr="d:${ip}"></path></g>
+          </svg>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:0.04em;color:oklch(82% 0.008 235)" data-text="pb.mono"></span>
+          <div data-if="pb.hasMods" hidden="" style="display:contents">
+            <div style="position:absolute;top:-5px;right:-5px;min-width:14px;height:14px;padding:0 3px;background:oklch(70% 0.13 150);color:oklch(14% 0.02 235);font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;box-sizing:border-box" data-text="pb.modCount"></div>
+          </div>
+        </button>
+      </template>
+
+      <!-- PLACED MODULES -->
+      <template data-for="pm in placedModules">
+        <div style="position:absolute;transform:translate(-50%,-50%);width:26px;height:26px;background:oklch(24% 0.04 150 / 0.85);border:1px solid oklch(70% 0.13 150 / 0.7);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:8px;color:oklch(80% 0.1 150);z-index:6;box-sizing:border-box" data-style="left:${pm.leftPx};top:${pm.topPx}" data-attr="title:${pm.mono}" data-text="pm.mono"></div>
+      </template>
+
+      <!-- BUILDING PLACEMENT GHOST -->
+      <div data-if="placeGhost.visible" hidden="" style="display:contents">
+        <div style="position:absolute;z-index:39;box-sizing:border-box;pointer-events:none" data-style="left:${placeGhost.leftPx};top:${placeGhost.topPx};width:${placeGhost.sizePx};height:${placeGhost.sizePx};background:${placeGhost.bg};border:2px solid ${placeGhost.border}"></div>
+      </div>
+    </div>
+
+    <!-- blocks clicks from reaching existing buildings while a tool is armed -->
+    <div data-if="isPlacing" hidden="" style="display:contents">
+      <div style="position:absolute;inset:0;z-index:40" data-style="background:${placeTint}"></div>
+    </div>
+  </div>
+
+  <!-- INTERFACE LAYER — a separate layer from the game viewport above it.
+       The wrapper itself is click-through (pointer-events:none): empty HUD
+       space still lets you drag-pan the field beneath it. Every actual
+       widget/panel inside re-enables pointer-events on itself. -->
+  <div style="position:absolute;inset:0;z-index:10;pointer-events:none">
+
+  <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 46%, transparent 35%, oklch(9% 0.02 235 / 0.6) 100%);pointer-events:none"><div style="position: absolute; left: 35px; width: 196px; background: oklch(23% 0.025 235 / 0.85); backdrop-filter: blur(14px); border: 1px solid oklch(92% 0.01 235 / 0.14); padding: 10px; z-index: 10; box-sizing: border-box; top: 797px; pointer-events:auto">
+    <button style="position:relative;display:block;width:176px;height:176px;padding:0;background:repeating-linear-gradient(45deg, oklch(19% 0.02 235) 0px, oklch(19% 0.02 235) 6px, oklch(21% 0.022 235) 6px, oklch(21% 0.022 235) 12px);border:1px solid oklch(92% 0.01 235 / 0.12);overflow:hidden;cursor:pointer" data-on="click:openMap" data-attr="title:${t.mapOpen}">
+      <div style="position:absolute;border:1.5px solid var(--teal);background:oklch(56% 0.13 178 / 0.1);box-sizing:border-box;pointer-events:none" data-style="left:${mapViewport.leftPct};top:${mapViewport.topPct};width:${mapViewport.wPct};height:${mapViewport.hPct}"></div>
+      <template data-for="mb in mapBuildings">
+        <div style="position:absolute;width:5px;height:5px;background:var(--teal);transform:translate(-50%,-50%);box-shadow:0 0 4px oklch(74% 0.135 178 / 0.8)" data-style="left:${mb.leftPct};top:${mb.topPct}"></div>
+      </template>
+    </button>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:0.05em" data-text="t.sectorMap"></span>
+      <div style="display:flex;gap:4px">
+        <button style="width:18px;height:18px;background:oklch(30% 0.02 235);border:1px solid oklch(92% 0.01 235 / 0.14);color:oklch(80% 0.008 235);font-size:11px;line-height:1;cursor:pointer;padding:0" data-on="click:openMap" data-attr="title:${t.mapOpen}">⛶</button>
+        <button style="width:18px;height:18px;background:oklch(30% 0.02 235);border:1px solid oklch(92% 0.01 235 / 0.14);color:oklch(80% 0.008 235);cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center" data-on="click:openSystem" data-attr="title:${t.sysOpen}">
+          <div style="position:relative;width:12px;height:12px">
+            <div style="position:absolute;left:3.5px;top:3.5px;width:5px;height:5px;border-radius:50%;background:currentColor"></div>
+            <div style="position:absolute;left:-1px;top:3.5px;width:14px;height:5px;border:1px solid currentColor;border-radius:50%;transform:rotate(-22deg)"></div>
+          </div>
+        </button>
+        <button style="width:18px;height:18px;background:oklch(30% 0.02 235);border:1px solid oklch(92% 0.01 235 / 0.14);color:oklch(80% 0.008 235);font-size:12px;line-height:1;cursor:pointer;padding:0">+</button>
+        <button style="width:18px;height:18px;background:oklch(30% 0.02 235);border:1px solid oklch(92% 0.01 235 / 0.14);color:oklch(80% 0.008 235);font-size:12px;line-height:1;cursor:pointer;padding:0">−</button>
+      </div>
+    </div>
+  </div></div>
+
+  <!-- PLACEMENT MODE HINT BAR -->
+  <div data-if="isPlacing" hidden="" style="display:contents">
+    <div style="position:absolute;left:50%;top:84px;transform:translateX(-50%);z-index:41;display:flex;align-items:center;gap:14px;padding:10px 16px;background:oklch(23% 0.025 235 / 0.96);backdrop-filter:blur(14px);border:1px solid oklch(74% 0.135 178 / 0.45);box-sizing:border-box;pointer-events:auto">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.08em;color:var(--teal);text-transform:uppercase" data-text="t.placeMode"></span>
+      <span style="font-size:12.5px;color:oklch(92% 0.006 235)"><span data-text="placeHintText"></span> <b style="color:var(--teal)" data-text="placingName"></b></span>
+      <button style="background:none;border:1px solid oklch(92% 0.01 235 / 0.22);color:oklch(80% 0.008 235);font-size:11px;font-weight:600;padding:6px 12px;cursor:pointer" data-on="click:cancelPlace" data-text="t.cancel"></button>
+    </div>
+  </div>
+
+  <!-- PLACEMENT ERROR TOAST -->
+  <div data-if="hasActionError" hidden="" style="display:contents">
+    <div style="position:absolute;left:50%;top:132px;transform:translateX(-50%);z-index:42;padding:7px 16px;background:oklch(30% 0.09 25 / 0.96);backdrop-filter:blur(14px);border:1px solid oklch(65% 0.16 25 / 0.6);box-sizing:border-box;pointer-events:none">
+      <span style="font-size:12px;font-weight:600;color:oklch(88% 0.05 25)" data-text="actionErrorMsg"></span>
+    </div>
+  </div>
+
+  <!-- TOP BAR -->
+  <div style="position:absolute;top:0;left:0;right:0;height:68px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:oklch(23% 0.025 235 / 0.82);backdrop-filter:blur(14px);border-bottom:1px solid oklch(92% 0.01 235 / 0.1);z-index:10;box-sizing:border-box;pointer-events:auto">
+    <div style="display:flex;align-items:center;gap:16px">
+      <div style="width:24px;height:24px;background:oklch(56% 0.13 178);transform:rotate(45deg);flex:none"></div>
+      <div>
+        <div style="font-size:17px;font-weight:600;line-height:1.1;letter-spacing:0.02em" data-text="colonyName"></div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;margin-top:2px" data-text="t.sectorSub"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding-left:16px;border-left:1px solid oklch(92% 0.01 235 / 0.14)" data-attr="title:${t.solDateHint}">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:var(--teal);letter-spacing:0.04em" data-text="solLabel"></span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:oklch(90% 0.006 235);letter-spacing:0.02em" data-text="solTime"></span>
+      </div>
+      <div style="display:flex;align-items:center;padding-left:12px" data-attr="title:${t.dayNightHint}">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.08em;padding:2px 7px" data-style="color:${dayNightColor};border:1px solid ${dayNightColor}" data-text="dayNightLabel"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:3px;padding-left:12px" data-attr="title:${speedHint}">
+        <template data-for="sp in speedTabs">
+          <button style="min-width:26px;height:22px;padding:0 5px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.02em;cursor:pointer;display:flex;align-items:center;justify-content:center" data-on="click:sp.onClick" data-style="background:${sp.bg};border:1px solid ${sp.border};color:${sp.color}" data-text="sp.label"></button>
+        </template>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:30px">
+      <template data-for="res in resources">
+        <div style="position:relative;display:flex;align-items:center;gap:8px;cursor:default;height:68px" data-on="mouseenter:res.onEnter;mouseleave:res.onLeave" data-attr="title:${res.label}">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-attr="stroke:${res.dotColor}">
+            <g data-for="ip in res.icon"><path data-attr="d:${ip}"></path></g>
+          </svg>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted);letter-spacing:0.04em" data-text="res.code"></span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:500;color:oklch(97% 0.004 235)" data-text="res.value"></span>
+
+          <div data-if="res.showPopup" hidden="" style="display:contents">
+            <div style="position:absolute;top:60px;left:-16px;width:250px;background:oklch(20% 0.024 235 / 0.98);backdrop-filter:blur(14px);border:1px solid oklch(74% 0.135 178 / 0.3);padding:14px 16px;z-index:30;animation:panelIn 0.14s ease-out;box-sizing:border-box">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--teal);margin-bottom:10px" data-text="res.popup.title"></div>
+
+              <div data-if="res.popup.kind === 'flow'" hidden="" style="display:contents">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:0.08em;text-transform:uppercase;color:oklch(56% 0.012 235);margin-bottom:3px" data-text="t.detIncome"></div>
+                <template data-for="ln in res.popup.income">
+                  <div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0"><span style="color:oklch(80% 0.006 235)" data-text="ln.label"></span><span style="font-family:'JetBrains Mono',monospace;color:oklch(70% 0.13 150)" data-text="ln.val"></span></div>
+                </template>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:0.08em;text-transform:uppercase;color:oklch(56% 0.012 235);margin:8px 0 3px" data-text="t.detExpense"></div>
+                <template data-for="ln in res.popup.expense">
+                  <div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0"><span style="color:oklch(80% 0.006 235)" data-text="ln.label"></span><span style="font-family:'JetBrains Mono',monospace;color:oklch(78% 0.14 72)" data-text="ln.val"></span></div>
+                </template>
+                <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;border-top:1px solid oklch(92% 0.01 235 / 0.12);margin-top:7px;padding-top:7px"><span data-text="t.detNet"></span><span class="mono-teal" data-text="res.popup.net"></span></div>
+              </div>
+
+              <div data-if="res.popup.kind === 'pop'" hidden="" style="display:contents">
+                <div style="height:5px;background:oklch(30% 0.02 235);margin-bottom:10px;overflow:hidden"><div style="height:100%;background:oklch(60% 0.13 178)" data-style="width:${res.popup.barPct}"></div></div>
+                <template data-for="ln in res.popup.lines">
+                  <div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px solid oklch(92% 0.01 235 / 0.05)"><span class="muted" data-text="ln.label"></span><span style="font-family:'JetBrains Mono',monospace;color:oklch(90% 0.006 235)" data-text="ln.val"></span></div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase" data-text="t.ecoIndex"></span>
+        <div style="width:96px;height:6px;background:oklch(30% 0.02 235);border-radius:3px;overflow:hidden">
+          <div style="height:100%;background:oklch(60% 0.13 178)" data-style="width:${ecoBarWidth}"></div>
+        </div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;color:var(--teal);min-width:30px" data-text="ecoIndexDisplay"></span>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px;height:38px;padding:0 10px;border:1px solid oklch(92% 0.01 235 / 0.14);background:oklch(26% 0.02 235 / 0.5);box-sizing:border-box">
+        <audio preload="metadata" style="display:none" data-ref="audioRef" data-on="timeupdate:onAudioTime;loadedmetadata:onAudioMeta;durationchange:onAudioDur;play:onAudioPlay;pause:onAudioPause;ended:onAudioEnded"></audio>
+        <button title="Prev" style="width:16px;height:16px;background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center" data-on="click:musicPrev">
+          <div style="width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-right:7px solid oklch(80% 0.008 235)"></div>
+        </button>
+        <button title="Play / Pause" style="width:22px;height:22px;background:oklch(56% 0.13 178 / 0.16);border:1px solid oklch(56% 0.13 178 / 0.45);cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center" data-on="click:toggleMusic">
+          <div data-if="musicPaused" hidden="" style="display:contents">
+            <div style="width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid var(--teal);margin-left:2px"></div>
+          </div>
+          <div data-if="musicPlaying" hidden="" style="display:contents">
+            <div style="display:flex;gap:2px"><div style="width:3px;height:9px;background:var(--teal)"></div><div style="width:3px;height:9px;background:var(--teal)"></div></div>
+          </div>
+        </button>
+        <button title="Next" style="width:16px;height:16px;background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center" data-on="click:musicNext">
+          <div style="width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:7px solid oklch(80% 0.008 235)"></div>
+        </button>
+        <div style="display:flex;flex-direction:column;justify-content:center;gap:3px;width:118px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px">
+            <span style="font-size:10px;color:oklch(88% 0.006 235);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" data-attr="title:${musicArtist} — ${musicTitle}" data-text="musicTitle"></span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:oklch(55% 0.012 235);flex:none"><span data-text="musicElapsed"></span> / <span data-text="musicTotal"></span></span>
+          </div>
+          <div style="height:3px;background:oklch(32% 0.02 235);overflow:hidden"><div style="height:100%;background:oklch(60% 0.13 178)" data-style="width:${musicPct}"></div></div>
+        </div>
+        <div style="position:relative;width:26px;height:26px;border-radius:50%;flex:none;cursor:pointer;box-sizing:border-box" data-on="pointerdown:volPointerDown;wheel:volWheel" data-style="background:conic-gradient(from 225deg, oklch(62% 0.13 178) ${volFillDeg}, oklch(33% 0.02 235) ${volFillDeg})" data-attr="title:Volume ${musicVolPct}%">
+          <div style="position:absolute;inset:3px;border-radius:50%;background:oklch(22% 0.02 235);border:1px solid oklch(92% 0.01 235 / 0.16)"></div>
+          <div style="position:absolute;inset:0" data-style="transform:rotate(${volAngle})">
+            <div style="position:absolute;left:50%;top:2.5px;width:2.5px;height:6px;border-radius:1px;background:oklch(82% 0.07 178);transform:translateX(-50%)"></div>
+          </div>
+        </div>
+      </div>
+      <button style="height:38px;padding:0 12px;border:1px solid oklch(92% 0.01 235 / 0.14);background:oklch(26% 0.02 235 / 0.5);cursor:pointer;color:oklch(88% 0.06 178);font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;letter-spacing:0.05em" data-on="click:toggleLang" data-attr="title:${t.langSwitch}" data-text="langLabel"></button>
+      <button style="position:relative;width:38px;height:38px;border:1px solid oklch(92% 0.01 235 / 0.14);background:oklch(26% 0.02 235 / 0.5);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0" data-on="click:toggleNotif">
+        <div style="width:15px;height:15px;border-radius:50%;border:1.5px solid oklch(80% 0.008 235)"></div>
+        <div data-if="hasNotifs" hidden="" style="display:contents">
+          <div style="position:absolute;top:5px;right:5px;min-width:14px;height:14px;padding:0 3px;border-radius:7px;color:oklch(14% 0.02 235);font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;display:flex;align-items:center;justify-content:center;animation:badgePulse 2.4s ease-in-out infinite;box-sizing:border-box" data-style="background:${notifBadgeColor}" data-text="notifCount"></div>
+        </div>
+      </button>
+      <button style="width:38px;height:38px;border:1px solid oklch(92% 0.01 235 / 0.14);background:oklch(26% 0.02 235 / 0.5);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0" data-on="click:toggleMenu" data-attr="title:${t.menuTitle}">
+        <span class="hb-line"></span>
+        <span class="hb-line"></span>
+        <span class="hb-line"></span>
+      </button>
+    </div>
+  </div>
+
+  <!-- COLONY WARNINGS STRIP -->
+  <div data-if="hasWarnings" hidden="" style="display:contents">
+    <div style="position:absolute;top:74px;left:50%;transform:translateX(-50%);z-index:14;display:flex;flex-direction:column;gap:3px;pointer-events:none;max-width:640px">
+      <template data-for="w in colonyWarnings">
+        <div style="display:flex;align-items:center;gap:8px;padding:5px 12px;background:oklch(22% 0.05 30 / 0.92);backdrop-filter:blur(10px);border:1px solid oklch(60% 0.16 30 / 0.5)" data-style="border-left:3px solid ${w.dotColor}">
+          <div style="width:6px;height:6px;border-radius:50%;flex:none" data-style="background:${w.dotColor}"></div>
+          <span style="font-size:11px;color:oklch(92% 0.02 30);line-height:1.3" data-text="w.text"></span>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- EVENTS FEED (LEFT) -->
+  <div data-if="isNotifOpen" hidden="" style="display:contents">
+    <div style="position:absolute;top:84px;left:28px;width:320px;z-index:15;animation:panelIn 0.18s ease-out;pointer-events:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:oklch(23% 0.025 235 / 0.9);backdrop-filter:blur(14px);border:1px solid oklch(92% 0.01 235 / 0.14);border-bottom:none">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--teal)" data-text="t.recentEvents"></span>
+        <button style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:0;line-height:1" data-on="click:toggleNotif" data-attr="title:${t.close}">✕</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">
+        <template data-for="n in notifications">
+          <div style="display:flex;gap:10px;padding:11px 14px;background:oklch(21% 0.024 235 / 0.86);backdrop-filter:blur(14px);border:1px solid oklch(92% 0.01 235 / 0.1)" data-style="border-left:2px solid ${n.dotColor}">
+            <div style="flex:1">
+              <div style="font-size:12px;line-height:1.4;color:oklch(90% 0.006 235)" data-text="n.text"></div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:oklch(50% 0.012 235);margin-top:4px" data-text="n.time"></div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- OBJECTIVES PANEL (bottom-left) -->
+  <div style="position:absolute;left:28px;bottom:24px;width:300px;z-index:12;pointer-events:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 13px;background:oklch(23% 0.025 235 / 0.92);backdrop-filter:blur(14px);border:1px solid oklch(92% 0.01 235 / 0.14);cursor:pointer" data-on="click:toggleObjectives">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--teal)" data-text="objectivesTitle"></span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted)" data-text="objectivesActiveLabel"></span>
+    </div>
+    <div data-if="objectivesOpen" hidden="" style="display:contents">
+      <div style="max-height:260px;overflow-y:auto;background:oklch(20% 0.022 235 / 0.9);backdrop-filter:blur(14px);border:1px solid oklch(92% 0.01 235 / 0.14);border-top:none;padding:8px 12px 10px">
+        <template data-for="ob in objectivesList">
+          <div style="padding:6px 0;border-bottom:1px solid oklch(92% 0.01 235 / 0.06)">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+              <span style="font-size:11.5px;color:oklch(90% 0.006 235)" data-text="ob.name"></span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:oklch(72% 0.13 150);flex:none" data-text="ob.reward"></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:7px;margin-top:4px">
+              <div style="flex:1;height:3px;background:oklch(30% 0.02 235);overflow:hidden"><div style="height:100%" data-style="width:${ob.pct};background:${ob.barColor}"></div></div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);flex:none" data-text="ob.progress"></span>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT ICON RAIL -->
+  <div style="position:absolute;right:28px;bottom:24px;display:flex;flex-direction:row;gap:10px;z-index:10;pointer-events:auto">
+    <template data-for="rb in railButtons">
+      <button style="width:46px;height:46px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0" data-on="click:rb.onClick" data-style="background:${rb.bg};border:1px solid ${rb.border};color:${rb.monoColor}" data-attr="title:${rb.label}">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <g data-for="ip in rb.icon">
+            <path data-attr="d:${ip}"></path>
+          </g>
+        </svg>
+      </button>
+    </template>
+  </div>
+
+  <!-- BOTTOM-CENTER CONTEXT PANEL -->
+  <div data-if="isBuildingSelected" hidden="" style="display:contents">
+    <div style="position:absolute;left:50%;bottom:24px;transform:translateX(-50%);width:310px;background:oklch(23% 0.025 235 / 0.85);backdrop-filter:blur(14px);border:1px solid oklch(92% 0.01 235 / 0.14);clip-path:polygon(14px 0,100% 0,100% 100%,0 100%,0 14px);padding:16px 18px;z-index:10;box-sizing:border-box;pointer-events:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase" data-text="selectedBuilding.category"></div>
+        <button style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:0" data-on="click:toggleBuildingSelect">✕</button>
+      </div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:12px" data-text="selectedBuilding.name"></div>
+
+      <div data-if="selectedBuilding.hasProduction" hidden="" style="display:contents">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:6px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <template data-for="inp in selectedBuilding.inputs">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+                <div style="width:38px;height:38px;background:oklch(30% 0.02 235);border:1px solid oklch(92% 0.01 235 / 0.14);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:9px;color:oklch(80% 0.008 235)" data-text="inp.mono"></div>
+                <div class="mono-muted"><span data-text="inp.current"></span>/<span data-text="inp.needed"></span></div>
+              </div>
+            </template>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+            <div style="width:52px;height:52px;border-radius:50%;border:2px solid oklch(56% 0.13 178 / 0.55);background:oklch(23% 0.025 235 / 0.6);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--teal);flex:none;box-sizing:border-box"><span data-text="selectedBuilding.efficiency"></span>%</div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:7.5px;letter-spacing:0.04em;text-transform:uppercase;color:oklch(56% 0.012 235)" data-text="t.efficiency"></span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+            <div style="width:42px;height:42px;background:oklch(32% 0.06 72 / 0.35);border:1px solid oklch(78% 0.14 72 / 0.45);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:10px;color:oklch(78% 0.14 72)" data-text="selectedBuilding.output.mono"></div>
+            <div class="mono-muted">+<span data-text="selectedBuilding.output.current"></span>/ц</div>
+          </div>
+        </div>
+      </div>
+
+      <div data-if="selectedBuilding.canUpgrade" hidden="" style="display:contents">
+        <div style="padding-top:10px;border-top:1px solid oklch(92% 0.01 235 / 0.08);margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted)" data-text="t.modules"></span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--teal)" data-text="selectedBuilding.moduleLabel"></span>
+          </div>
+          <div style="display:flex;gap:5px;margin-bottom:8px">
+            <template data-for="ms in selectedBuilding.moduleSlots">
+              <div style="position:relative;flex:1;aspect-ratio:1;background:oklch(28% 0.02 235);border:1px dashed oklch(92% 0.01 235 / 0.16);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--teal)">
+                <div data-if="ms.on" hidden="" style="display:contents">
+                  <span data-text="ms.mono"></span>
+                  <button style="position:absolute;top:-5px;right:-5px;width:13px;height:13px;border-radius:50%;background:oklch(30% 0.12 30);border:1px solid oklch(70% 0.16 30);color:oklch(92% 0.05 30);font-size:8px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center" data-on="click:ms.onRemove" data-attr="title:${t.demolish}">✕</button>
+                </div>
+              </div>
+            </template>
+          </div>
+          <div data-if="isModuleMenu" hidden="" style="display:contents">
+            <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+              <template data-for="mc in moduleChoices">
+                <button style="display:flex;align-items:center;gap:8px;padding:7px 9px;background:oklch(23% 0.025 235 / 0.7);border:1px solid oklch(92% 0.01 235 / 0.12);cursor:pointer;text-align:left" data-on="click:mc.onPick">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--teal);border:1px solid oklch(74% 0.135 178 / 0.4);padding:2px 4px" data-text="mc.mono"></span>
+                  <span style="flex:1;font-size:11px;color:oklch(88% 0.006 235)" data-text="mc.name"></span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:oklch(70% 0.13 150)" data-text="mc.eff"></span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:8.5px;white-space:nowrap" data-style="color:${mc.costColor}" data-text="mc.cost"></span>
+                </button>
+              </template>
+            </div>
+          </div>
+          <div data-if="selectedBuilding.moduleFull" hidden="" style="display:contents">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:oklch(56% 0.012 235);text-align:center;padding:4px 0" data-text="t.moduleFull"></div>
+          </div>
+          <div data-if="selectedBuilding.canAddModule" hidden="" style="display:contents">
+            <button style="width:100%;padding:7px 0;background:oklch(56% 0.13 178 / 0.14);border:1px solid oklch(56% 0.13 178 / 0.45);color:var(--teal);font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer" data-on="click:toggleModuleMenu" data-text="t.upgrade"></button>
+          </div>
+        </div>
+      </div>
+
+      <div data-if="selectedBuilding.isWarehouse" hidden="" style="display:contents">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px" data-text="t.warehouseStorage"></div>
+        <div style="font-size:10.5px;color:oklch(70% 0.01 235);margin-bottom:8px" data-text="selectedBuilding.warehouseKindLabel"></div>
+        <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:8px">
+          <template data-for="r in selectedBuilding.storage">
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
+                <span style="font-size:11px;color:oklch(85% 0.006 235)" data-text="r.label"></span>
+                <span class="mono-muted"><span data-text="r.amount"></span> / <span data-text="r.cap"></span></span>
+              </div>
+              <div style="height:4px;background:oklch(30% 0.02 235);overflow:hidden"><div style="height:100%" data-style="width:${r.pct};background:${r.color}"></div></div>
+            </div>
+          </template>
+        </div>
+        <div data-if="selectedBuilding.hasFullStorage" hidden="" style="display:contents">
+          <div style="font-size:10.5px;color:oklch(70% 0.15 30);margin-bottom:8px" data-text="t.whFull"></div>
+        </div>
+      </div>
+
+      <div data-if="selectedBuilding.isHangar" hidden="" style="display:contents">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted)" data-text="t.bayCapacity"></span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--teal)" data-text="selectedBuilding.bayCapLabel"></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+          <span style="font-size:10.5px;color:oklch(70% 0.01 235)" data-text="t.bayParked"></span>
+          <span class="mono-muted" data-text="selectedBuilding.bayParkedLabel"></span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">
+          <template data-for="bs in selectedBuilding.baySlots">
+            <div style="width:22px;height:16px;background:oklch(28% 0.02 235);border:1px solid oklch(92% 0.01 235 / 0.14);display:flex;align-items:center;justify-content:center">
+              <div data-if="bs.on" hidden="" style="display:contents">
+                <div style="position:relative;width:11px;height:8px">
+                  <div style="position:absolute;left:0;bottom:0;width:11px;height:5px;background:oklch(78% 0.13 88)"></div>
+                  <div style="position:absolute;left:1px;top:0;width:5px;height:4px;background:oklch(78% 0.13 88)"></div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div data-if="selectedBuilding.isPort" hidden="" style="display:contents">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted)" data-text="t.portImmigration"></span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--teal)" data-text="selectedBuilding.portArrivalsLabel"></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-size:10.5px;color:oklch(70% 0.01 235)" data-text="t.portColonyRate"></span>
+          <span class="mono-muted" data-text="selectedBuilding.portColonyArrivals"></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:9px;border-top:1px solid oklch(92% 0.01 235 / 0.08);margin-bottom:6px">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted)" data-text="t.portDocking"></span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--teal)" data-text="selectedBuilding.portBaysLabel"></span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
+          <template data-for="pb in selectedBuilding.portBaySlots">
+            <div style="width:22px;height:16px;background:oklch(28% 0.02 235);border:1px solid oklch(92% 0.01 235 / 0.14);display:flex;align-items:center;justify-content:center">
+              <div data-if="pb.on" hidden="" style="display:contents">
+                <div style="position:relative;width:12px;height:9px">
+                  <div style="position:absolute;left:0;bottom:1px;width:12px;height:4px;border-radius:0 0 4px 4px;background:var(--teal)"></div>
+                  <div style="position:absolute;left:5px;top:0;width:2px;height:5px;background:var(--teal)"></div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:10.5px;color:oklch(70% 0.01 235)" data-text="t.portColonyBays"></span>
+          <span class="mono-muted" data-text="selectedBuilding.portColonyBaysLabel"></span>
+        </div>
+        <div data-if="selectedBuilding.portBaysFull" hidden="" style="display:contents">
+          <div style="font-size:10.5px;color:oklch(74% 0.15 45);margin-bottom:8px" data-text="t.portBaysFullMsg"></div>
+        </div>
+      </div>
+
+      <div data-if="selectedBuilding.showFleet" hidden="" style="display:contents">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid oklch(92% 0.01 235 / 0.08);margin-bottom:7px">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted)" data-text="t.collectionMachines"></span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--teal)" data-text="selectedBuilding.machinesLabel"></span>
+        </div>
+        <div style="display:flex;gap:4px;margin-bottom:8px">
+          <template data-for="m in selectedBuilding.machineSlots">
+            <div style="flex:1;height:18px;background:oklch(28% 0.02 235);border:1px solid oklch(92% 0.01 235 / 0.14);display:flex;align-items:center;justify-content:center">
+              <div data-if="m.on" hidden="" style="display:contents">
+                <div style="position:relative;width:11px;height:8px">
+                  <div style="position:absolute;left:0;bottom:0;width:11px;height:5px;background:var(--teal)"></div>
+                  <div style="position:absolute;left:1px;top:0;width:5px;height:4px;background:var(--teal)"></div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <button style="flex:1;padding:6px 0;background:oklch(56% 0.13 178 / 0.14);border:1px solid oklch(56% 0.13 178 / 0.45);font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer" data-on="click:whDispatch" data-style="color:${selectedBuilding.dispatchColor}" data-text="t.dispatch"></button>
+          <button style="flex:1;padding:6px 0;background:transparent;border:1px solid oklch(92% 0.01 235 / 0.16);font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer" data-on="click:whRecall" data-style="color:${selectedBuilding.recallColor}" data-text="t.recall"></button>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:9px;border-top:1px solid oklch(92% 0.01 235 / 0.08);margin-bottom:6px">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted)" data-text="t.logiCoverage"></span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:12px" data-style="color:${selectedBuilding.logiColor}" data-text="selectedBuilding.logiLabel"></span>
+        </div>
+        <div style="height:4px;background:oklch(30% 0.02 235);overflow:hidden;margin-bottom:6px"><div style="height:100%" data-style="width:${selectedBuilding.logiPct};background:${selectedBuilding.logiColor}"></div></div>
+        <div data-if="selectedBuilding.logiShort" hidden="" style="display:contents">
+          <div style="font-size:10.5px;color:oklch(74% 0.15 45);margin-bottom:8px" data-text="t.logiShortMsg"></div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding-top:10px;border-top:1px solid oklch(92% 0.01 235 / 0.08)">
+        <div class="dot-row"><div style="width:6px;height:6px;border-radius:50%;background:oklch(70% 0.01 235);flex:none"></div><span class="stat-span" data-text="selectedBuilding.upkeep"></span></div>
+        <div class="dot-row"><div style="width:6px;height:6px;border-radius:50%;background:oklch(78% 0.14 72);flex:none"></div><span class="stat-span" data-text="selectedBuilding.energyUse"></span></div>
+        <div data-if="selectedBuilding.isPlaced" hidden="" style="display:contents">
+          <div class="dot-row"><div style="width:6px;height:6px;border-radius:50%;flex:none" data-style="background:${selectedBuilding.hpColor}"></div><span class="stat-span"><span data-text="t.hp"></span> <span data-text="selectedBuilding.hpPct"></span></span></div>
+        </div>
+      </div>
+
+      <div data-if="selectedBuilding.isPlaced" hidden="" style="display:contents">
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <div data-if="selectedBuilding.needsRepair" hidden="" style="display:contents">
+            <button style="flex:1;padding:6px 0;background:oklch(30% 0.09 150 / 0.4);border:1px solid oklch(70% 0.13 150 / 0.5);color:oklch(76% 0.13 150);font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;cursor:pointer;white-space:nowrap" data-on="click:repairBuilding" data-attr="title:${t.repair} · ${selectedBuilding.repairCost}"><span data-text="t.repair"></span> <span data-text="selectedBuilding.repairCostShort"></span></button>
+          </div>
+          <button style="flex:1;padding:6px 0;background:transparent;border:1px solid oklch(70% 0.14 30 / 0.45);color:oklch(74% 0.15 30);font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;cursor:pointer;white-space:nowrap" data-on="click:demolishSelected" data-attr="title:${t.demolish} · ${selectedBuilding.demolishRefund}"><span data-text="t.demolish"></span> <span data-text="selectedBuilding.demolishRefundShort"></span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM-LEFT MINIMAP -->
+  
+
+  <!-- BUILD PANEL -->
+  <div data-if="isBuildPanel" hidden="" style="display:contents">
+    <div style="position: absolute; width: 326px; background: oklch(20% 0.024 235 / 0.95); backdrop-filter: blur(16px); border: 1px solid oklch(92% 0.01 235 / 0.14); padding: 10px; z-index: 20; animation: panelIn 0.18s ease-out; box-sizing: border-box; height: 284px; left: 1563px; top: 710px; pointer-events:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase" data-text="t.build"></span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button style="border:1px solid oklch(70% 0.14 30 / 0.5);color:oklch(76% 0.15 30);font-family:'JetBrains Mono',monospace;font-size:8.5px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;padding:3px 7px;cursor:pointer" data-on="click:startDemolish" data-style="background:${demolishBtnBg}" data-attr="title:${t.demolishHint}" data-text="t.demolish"></button>
+          <button style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;padding:0" data-on="click:closePanel">✕</button>
+        </div>
+      </div>
+      <div data-if="hasChainPreview" hidden="" style="display:contents">
+        <div style="margin-bottom:8px;padding:7px;background:oklch(23% 0.025 235 / 0.6);border:1px solid oklch(92% 0.01 235 / 0.1);display:flex;align-items:center;justify-content:center;gap:5px;flex-wrap:wrap">
+          <template data-for="src in chainPreview.sources">
+            <button style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;padding:0" data-on="click:src.onSelect" data-attr="title:${src.name}">
+              <div style="width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:8px;box-sizing:border-box" data-style="background:${src.bg};border:1px solid ${src.border};color:${src.color}" data-text="src.mono"></div>
+              <span style="font-size:7.5px;color:var(--muted);max-width:38px;text-align:center;line-height:1.1" data-text="src.name"></span>
+            </button>
+            <span style="color:oklch(50% 0.012 235);font-size:11px;flex:none" data-text="src.sep"></span>
+          </template>
+          <button style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;padding:0" data-on="click:chainPreview.onSelectBuilding" data-attr="title:${chainPreview.buildingName}">
+            <div style="width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:8px;box-sizing:border-box" data-style="background:${chainPreview.buildingBg};border:1px solid ${chainPreview.buildingBorder};color:${chainPreview.buildingColor}" data-text="chainPreview.buildingMono"></div>
+            <span style="font-size:7.5px;color:oklch(80% 0.008 235);max-width:38px;text-align:center;line-height:1.1" data-text="chainPreview.buildingName"></span>
+          </button>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:0.04em;color:oklch(58% 0.012 235);text-align:center;margin-bottom:8px;text-transform:uppercase" data-text="t.chainPlaceHint"></div>
+      </div>
+      <div data-if="showRegionTabs" hidden="" style="display:contents">
+        <div style="display:flex;gap:4px;margin-bottom:8px">
+          <template data-for="rg in regionTabs">
+            <button style="flex:1;padding:6px 0;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer" data-on="click:rg.onClick" data-style="background:${rg.bg};border:1px solid ${rg.border};color:${rg.color}" data-text="rg.label"></button>
+          </template>
+        </div>
+      </div>
+      <div style="display:flex;gap:3px;margin-bottom:8px">
+        <template data-for="cat in buildCategoryTabs">
+          <button style="flex:1;padding:5px 0;font-family:'JetBrains Mono',monospace;font-size:8.5px;font-weight:600;letter-spacing:0.02em;cursor:pointer" data-on="click:cat.onClick" data-style="background:${cat.bg};border:1px solid ${cat.border};color:${cat.color}" data-text="cat.label"></button>
+        </template>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:5px;max-height:150px;overflow-y:auto;overflow-x:hidden;padding-right:2px">
+        <template data-for="item in activeItems">
+          <button style="width:100%;height:36px;border:1px solid oklch(92% 0.01 235 / 0.1);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:9px;padding:0;box-sizing:border-box;position:relative" data-on="click:item.onSelect;mouseenter:item.onEnter;mouseleave:item.onLeave" data-style="background:${item.cellBg};color:${item.monoColor};cursor:${item.cellCursor}">
+            <span data-text="item.mono"></span>
+            <div data-if="item.locked" hidden="" style="display:contents">
+              <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;top:2px;right:2px;color:oklch(58% 0.012 235)">
+                <rect x="3" y="11" width="18" height="11" rx="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+            </div>
+          </button>
+        </template>
+      </div>
+
+      <!-- Single shared tooltip anchored to the panel itself (not to each
+           tile) so it can never be clipped or dragged into the scrollable
+           tile grid's own overflow box, regardless of which row/column the
+           hovered tile is in. -->
+      <div data-if="hasShelfTip" hidden="" style="display:contents">
+        <div style="position:absolute;left:10px;right:10px;bottom:calc(100% + 8px);background:oklch(20% 0.024 235 / 0.98);backdrop-filter:blur(14px);border:1px solid oklch(74% 0.135 178 / 0.35);padding:10px 12px;z-index:50;box-sizing:border-box;pointer-events:none;animation:panelIn 0.12s ease-out">
+          <div style="font-size:11.5px;font-weight:600;color:oklch(94% 0.006 235);margin-bottom:2px" data-text="shelfTip.name"></div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:0.06em;text-transform:uppercase;color:var(--teal);margin-bottom:6px" data-text="shelfTip.category"></div>
+          <template data-for="row in shelfTip.rows">
+            <div style="display:flex;justify-content:space-between;gap:10px;font-size:10.5px;padding:1.5px 0"><span class="muted" data-text="row.label"></span><span style="font-family:'JetBrains Mono',monospace;color:oklch(90% 0.006 235);white-space:nowrap" data-text="row.val"></span></div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CITY PANEL -->
+  <div data-if="isCityPanel" hidden="" style="display:contents">
+    <div class="side-panel" style="width:380px;height:924px">
+      <div class="panel-head">
+        <span class="panel-title" data-text="t.colonyOverview"></span>
+        <button class="x-btn" data-on="click:closePanel">✕</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:15px;margin-bottom:24px">
+        <div>
+          <div class="kv-mb"><span class="muted" data-text="t.population"></span><span class="mono"><span data-text="colPopTotal"></span> / <span data-text="colPopCap"></span></span></div>
+          <div class="bar"><div style="height:100%;width:93%;background:oklch(60% 0.13 178)"></div></div>
+        </div>
+        <div>
+          <div class="kv-mb"><span class="muted" data-text="t.happiness"></span><span class="mono">81%</span></div>
+          <div class="bar"><div style="height:100%;width:81%;background:oklch(60% 0.13 178)"></div></div>
+        </div>
+        <div>
+          <div class="kv-mb"><span class="muted" data-text="t.ecoIndex"></span><span class="mono" data-text="ecoIndexDisplay"></span></div>
+          <div class="bar"><div style="height:100%;background:oklch(60% 0.13 178)" data-style="width:${ecoBarWidth}"></div></div>
+        </div>
+      </div>
+
+      <div class="section-label" data-text="colResLabel"></div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:24px">
+        <template data-for="cr in colonyRes">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:oklch(23% 0.025 235 / 0.6);border:1px solid oklch(92% 0.01 235 / 0.1)">
+            <span style="display:flex;align-items:center;gap:7px"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="var(--text-2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g data-for="ip in cr.icon"><path data-attr="d:${ip}"></path></g></svg><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-2);letter-spacing:0.06em" data-text="cr.label"></span></span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:12px" data-style="color:${cr.color}"><span data-text="cr.balance"></span> <span style="color:var(--muted);font-size:10px" data-text="colPerCycle"></span></span>
+          </div>
+        </template>
+      </div>
+
+      <div class="section-label" data-text="t.population"></div>
+      <div style="display:flex;height:8px;margin-bottom:12px;overflow:hidden">
+        <template data-for="pr in colPopRows">
+          <div style="height:100%" data-style="width:${pr.w};background:${pr.color}"></div>
+        </template>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:10px">
+        <template data-for="pr in colPopRows">
+          <div class="kv-sm"><span class="dot-row"><span style="width:7px;height:7px;flex:none" data-style="background:${pr.color}"></span><span class="muted" data-text="pr.label"></span></span><span class="mono" data-text="pr.value"></span></div>
+        </template>
+        <div class="kv-sm"><span class="muted" data-text="colGrowthLabel"></span><span style="font-family:'JetBrains Mono',monospace;color:oklch(72% 0.13 150)" data-text="colGrowthValue"></span></div>
+      </div>
+
+      <div class="section-label" style="margin-top:14px" data-text="colInfraLabel"></div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <template data-for="ci in colonyInfra">
+          <div class="kv-sm"><span class="muted" data-text="ci.label"></span><span class="mono" data-text="ci.count"></span></div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRADE PANEL -->
+  <div data-if="isTradePanel" hidden="" style="display:contents">
+    <div class="side-panel" style="width:378px;height:928px">
+      <div class="panel-head">
+        <span class="panel-title" data-text="t.tradeRoutesTitle"></span>
+        <button class="x-btn" data-on="click:closePanel">✕</button>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-bottom:22px">
+        <div style="flex:1.4;padding:12px;background:oklch(23% 0.025 235 / 0.6);border:1px solid oklch(92% 0.01 235 / 0.1)">
+          <div class="section-label" style="margin-bottom:5px" data-text="tradeSummary.incomeLabel"></div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:15px;color:var(--teal)" data-text="tradeSummary.income"></div>
+          <div style="font-size:9px;color:var(--muted)" data-text="tradeSummary.per"></div>
+        </div>
+        <div style="flex:1;padding:12px;background:oklch(23% 0.025 235 / 0.6);border:1px solid oklch(92% 0.01 235 / 0.1)">
+          <div class="section-label" style="margin-bottom:5px" data-text="tradeSummary.activeLabel"></div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:15px" data-text="tradeSummary.active"></div>
+          <div style="font-size:9px;color:var(--muted)"><span data-text="tradeSummary.slotsLabel"></span> <span data-text="tradeSummary.slots"></span></div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+        <template data-for="route in tradeRoutes">
+          <div style="padding:13px 14px;cursor:pointer" data-on="click:route.onSelect" data-style="background:${route.cardBg};border:1px solid ${route.cardBorder}">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px" data-style="opacity:${route.bodyOpacity}">
+              <span style="font-size:12.5px;font-weight:600"><span data-text="route.a"></span> <span style="color:var(--muted)">⇄</span> <span data-text="route.b"></span></span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.05em;padding:1px 5px" data-style="color:${route.statusColor};border:1px solid ${route.statusColor}" data-text="route.statusLabel"></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:7px;margin-bottom:9px" data-style="opacity:${route.bodyOpacity}">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none" data-attr="stroke:${route.cargoColor}"><g data-for="ip in route.cargoIcon"><path data-attr="d:${ip}"></path></g></svg>
+              <span style="font-size:11.5px;color:var(--text-2)" data-text="route.cargoName"></span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-left:auto" data-text="route.vol"></span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:10px;margin-bottom:9px" data-style="opacity:${route.bodyOpacity}">
+              <span data-style="color:${route.incomeColor}" data-text="route.income"></span>
+              <span style="color:var(--muted)" data-text="route.trips"></span>
+              <span style="color:var(--muted)" data-text="route.transit"></span>
+              <span data-style="color:${route.riskColor}">● <span data-text="route.riskLabel"></span></span>
+            </div>
+            <div class="dot-row" data-style="opacity:${route.bodyOpacity}">
+              <div class="bar" style="flex:1"><div style="height:100%" data-style="width:${route.loadPct};background:${route.cargoColor}"></div></div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted)" data-text="route.loadPct"></span>
+            </div>
+            <div data-if="route.sel" hidden="" style="display:contents">
+              <div style="display:flex;gap:7px;margin-top:12px">
+                <button style="flex:1;padding:7px 0;background:oklch(56% 0.13 178 / 0.14);border:1px solid oklch(56% 0.13 178 / 0.45);color:var(--teal);font-size:11px;font-weight:600;cursor:pointer" data-on="click:route.onToggle" data-text="route.toggleLabel"></button>
+                <button style="flex:1;padding:7px 0;background:transparent;border:1px solid oklch(92% 0.01 235 / 0.16);color:var(--muted);font-size:11px;font-weight:600;cursor:pointer" data-text="t.trReroute"></button>
+                <button style="flex:1;padding:7px 0;background:transparent;border:1px solid oklch(70% 0.14 30 / 0.4);color:oklch(72% 0.14 30);font-size:11px;font-weight:600;cursor:pointer" data-text="t.trDrop"></button>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+      <button style="width:100%;padding:10px 0;background:transparent;border:1px dashed oklch(92% 0.01 235 / 0.22);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer" data-on="click:openTradeNew" data-text="t.newRoute"></button>
+    </div>
+  </div>
+
+  <!-- NEW TRADE ROUTE DIALOG -->
+  <div data-if="isTradeNew" hidden="" style="display:contents">
+    <div style="position:absolute;inset:0;z-index:70;background:oklch(6% 0.015 268 / 0.72);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;animation:overlayIn 0.16s ease-out;pointer-events:auto">
+      <div style="width:440px;max-height:82vh;overflow-y:auto;background:var(--panel);border:1px solid var(--line);padding:26px 28px;box-sizing:border-box;animation:panelIn 0.16s ease-out">
+        <div class="panel-head" style="margin-bottom:20px">
+          <span class="panel-title" data-text="t.trNewTitle"></span>
+          <button class="x-btn" data-on="click:closeTradeNew">✕</button>
+        </div>
+
+        <div class="section-label" data-text="t.trNewDest"></div>
+        <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:22px">
+          <template data-for="d in tradeNewDests">
+            <button style="text-align:left;padding:11px 13px;cursor:pointer;color:oklch(94% 0.006 235)" data-on="click:d.onPick" data-style="background:${d.bg};border:1px solid ${d.border}">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+                <span style="font-size:12.5px;font-weight:600" data-text="d.name"></span>
+                <div data-if="d.taken" hidden="" style="display:contents">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--muted);border:1px solid oklch(92% 0.01 235 / 0.16);padding:1px 4px" data-text="t.trNewTaken"></span>
+                </div>
+              </div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px" data-style="color:${d.riskColor}" data-text="d.meta"></div>
+            </button>
+          </template>
+        </div>
+
+        <div class="section-label" data-text="t.trNewCargo"></div>
+        <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:22px">
+          <template data-for="c in tradeNewCargos">
+            <button style="display:flex;align-items:center;gap:6px;padding:7px 11px;cursor:pointer;color:oklch(92% 0.006 235);font-size:11.5px" data-on="click:c.onPick" data-style="background:${c.bg};border:1px solid ${c.border}">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none" data-attr="stroke:${c.color}"><g data-for="ip in c.icon"><path data-attr="d:${ip}"></path></g></svg><span data-text="c.name"></span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--teal)" data-text="c.demand"></span>
+            </button>
+          </template>
+        </div>
+
+        <div class="section-label" data-text="t.trNewProjection"></div>
+        <div style="display:flex;flex-direction:column;gap:8px;padding:13px 15px;background:oklch(23% 0.025 235 / 0.6);border:1px solid oklch(92% 0.01 235 / 0.1);margin-bottom:22px">
+          <div class="kv-sm"><span class="muted" data-text="tradeSummary.incomeLabel"></span><span style="font-family:'JetBrains Mono',monospace;color:var(--teal)" data-text="tnIncome"></span></div>
+          <div class="kv-sm"><span class="muted" data-text="t.trNewVol"></span><span class="mono" data-text="tnVol"></span></div>
+          <div class="kv-sm"><span class="muted" data-text="t.trTransit"></span><span class="mono" data-text="tnDays"></span></div>
+          <div class="kv-sm"><span class="muted" data-text="t.trRisk"></span><span style="font-family:'JetBrains Mono',monospace" data-style="color:${tnRiskColor}" data-text="tnRisk"></span></div>
+        </div>
+
+        <div style="display:flex;gap:9px">
+          <button style="flex:1;padding:10px 0;background:transparent;border:1px solid oklch(92% 0.01 235 / 0.16);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer" data-on="click:closeTradeNew" data-text="t.trCancel"></button>
+          <button data-sfx="confirm" style="flex:1.6;padding:10px 0;border:1px solid oklch(74% 0.135 178 / 0.5);font-size:12px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;cursor:pointer" data-on="click:confirmTradeNew" data-style="background:${tnConfirmBg};color:${tnConfirmColor}" data-attr="disabled:${tradeNewDisabled}" data-text="t.trNewConfirm"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLEET PANEL -->
+  <div data-if="isFleetPanel" hidden="" style="display:contents">
+    <div class="side-panel" style="width:364px;height:924px">
+      <div class="panel-head">
+        <span class="panel-title" data-text="t.fleetCommand"></span>
+        <button class="x-btn" data-on="click:closePanel">✕</button>
+      </div>
+      <div style="font-size:10.5px;color:var(--muted);line-height:1.5;margin-bottom:12px" data-text="t.fleetCapacityHint"></div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">
+        <template data-for="grp in fleetGroups">
+          <div style="padding:12px 14px;cursor:pointer" data-on="click:grp.onSelect" data-style="background:${grp.bg};border:1px solid ${grp.border}">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-size:12.5px;font-weight:600" data-text="grp.name"></span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--teal)">×<span data-text="grp.count"></span></span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)"><span data-text="grp.type"></span><span class="mono" data-text="grp.status"></span></div>
+            <div data-if="grp.selected" hidden="" style="display:contents">
+              <div style="margin-top:10px">
+                <button style="width:100%;padding:7px 0;background:transparent;border:1px solid oklch(70% 0.14 30 / 0.4);color:oklch(72% 0.14 30);font-size:11.5px;font-weight:600;cursor:pointer" data-on="click:grp.onDisband" data-text="t.disband"></button>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <div style="padding:10px 14px;background:oklch(23% 0.025 235 / 0.6);border:1px solid oklch(92% 0.01 235 / 0.1);margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted)" data-text="fleetDockRowLabel"></span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:13px" data-style="color:${fleetDockColor}" data-text="fleetDockLabel"></span>
+        </div>
+        <div style="font-size:10px;color:var(--muted);line-height:1.5" data-text="fleetDockHint"></div>
+        <div data-if="fleetDockFull" hidden="" style="display:contents">
+          <div style="font-size:10.5px;color:oklch(74% 0.15 45);margin-top:5px" data-text="t.fleetDockFullMsg"></div>
+        </div>
+      </div>
+
+      <div data-if="fleetBuildClosed" hidden="" style="display:contents">
+        <button style="width:100%;padding:9px 0;background:oklch(56% 0.13 178 / 0.14);border:1px solid oklch(56% 0.13 178 / 0.45);color:var(--teal);font-size:11.5px;font-weight:600;cursor:pointer" data-on="click:openFleetBuild" data-text="t.commission"></button>
+      </div>
+      <div data-if="fleetBuildOpen" hidden="" style="display:contents">
+        <div style="padding:12px 14px;background:oklch(23% 0.025 235 / 0.6);border:1px solid oklch(92% 0.01 235 / 0.1)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <span style="font-size:11.5px;font-weight:600" data-text="t.commissionTitle"></span>
+            <button style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;padding:0" data-on="click:closeFleetBuild">✕</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">
+            <template data-for="ft in fleetBuildTypes">
+              <button style="display:flex;justify-content:space-between;padding:8px 10px;color:oklch(90% 0.006 235);font-size:11.5px;cursor:pointer;text-align:left" data-on="click:ft.onSelect" data-style="background:${ft.bg};border:1px solid ${ft.border}">
+                <span data-text="ft.label"></span><span class="mono-muted" data-text="ft.cost"></span>
+              </button>
+            </template>
+          </div>
+          <button style="width:100%;padding:8px 0;background:oklch(56% 0.13 178 / 0.18);border:1px solid oklch(56% 0.13 178 / 0.6);color:var(--teal);font-size:11.5px;font-weight:600;cursor:pointer" data-on="click:confirmFleetBuild" data-attr="disabled:${fleetBuildConfirmDisabled}" data-text="t.commissionConfirm"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </div>
+  <!-- /INTERFACE LAYER -->
+
+  <!-- TECH TREE OVERLAY -->
+  <div data-if="isTechOverlay" hidden="" style="display:contents">
+    <div style="position:absolute;inset:0;background:oklch(11% 0.02 235 / 0.97);backdrop-filter:blur(6px);z-index:50;animation:overlayIn 0.18s ease-out;padding:40px 56px;box-sizing:border-box;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+        <div>
+          <div class="ov-title" data-text="t.technology"></div>
+          <div class="ov-sub"><span data-text="colonyName"></span> · <span data-text="t.researchDivision"></span></div>
+        </div>
+        <button class="ov-close" data-on="click:closeOverlay" data-text="t.close"></button>
+      </div>
+
+      <div style="display:flex;gap:6px;margin:20px 0 0;border-bottom:1px solid oklch(92% 0.01 235 / 0.12)">
+        <template data-for="tt in techTabs">
+          <button style="padding:10px 22px;border-bottom:none;font-size:12.5px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;cursor:pointer" data-on="click:tt.onClick" data-style="background:${tt.bg};border:1px solid ${tt.border};color:${tt.color}" data-text="tt.label"></button>
+        </template>
+      </div>
+
+      <div data-if="isPolicyTab" hidden="" style="display:contents">
+        <div style="padding:26px 0 10px">
+          <div class="ov-sub" style="margin-bottom:22px" data-text="policyHint"></div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:16px">
+            <template data-for="pcd in policyCards">
+              <div style="background:oklch(20% 0.024 235 / 0.9);border:1px solid oklch(92% 0.01 235 / 0.14);padding:16px 18px">
+                <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--teal);margin-bottom:12px" data-text="pcd.name"></div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <template data-for="po in pcd.options">
+                    <button style="text-align:left;padding:10px 12px;cursor:pointer;color:oklch(94% 0.006 235)" data-on="click:po.onPick" data-style="background:${po.bg};border:1px solid ${po.border}">
+                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                        <div style="width:9px;height:9px;border-radius:50%;flex:none" data-style="border:1px solid ${po.dotBorder};background:${po.dotBg}"></div>
+                        <span style="font-size:12.5px;font-weight:600" data-text="po.name"></span>
+                      </div>
+                      <div style="display:flex;flex-wrap:wrap;gap:4px 10px;padding-left:17px">
+                        <template data-for="fx in po.fx">
+                          <span style="font-family:'JetBrains Mono',monospace;font-size:10px" data-style="color:${fx.color}"><span data-text="fx.label"></span> <span data-text="fx.value"></span></span>
+                        </template>
+                      </div>
+                    </button>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <div data-if="isTechTree" hidden="" style="display:contents">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:22px 0 30px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <template data-for="tab in techFilterTabs">
+            <button style="padding:7px 14px;font-size:11.5px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;cursor:pointer" data-on="click:tab.onClick" data-style="background:${tab.bg};border:1px solid ${tab.border};color:${tab.color}" data-text="tab.label"></button>
+          </template>
+        </div>
+        <div style="display:flex;gap:18px">
+          <template data-for="lg in legendItems">
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="width:8px;height:8px;border-radius:50%" data-style="background:${lg.dot}"></div>
+              <span style="font-size:11px;color:var(--muted)" data-text="lg.label"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:16px;height:800px">
+        <div style="flex:1;position:relative;overflow-x:auto;overflow-y:hidden">
+          <div style="position:relative;width:1560px;height:790px">
+            <svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">
+              <g data-for="ln in connectorLines">
+                <line stroke-width="1.5" data-attr="x1:${ln.x1};y1:${ln.y1};x2:${ln.x2};y2:${ln.y2};stroke:${ln.stroke}"></line>
+              </g>
+            </svg>
+
+            <template data-for="node in techNodes">
+              <button style="position:absolute;width:280px;height:104px;padding:14px 16px;text-align:left;cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:6px;box-sizing:border-box" data-on="click:node.onClick" data-style="left:${node.leftPx};top:${node.topPx};background:${node.bg};border:1px solid ${node.border}">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.06em;text-transform:uppercase" data-style="color:${node.tagColor}"><span data-text="t.tier"></span> <span data-text="node.tier"></span> · <span data-text="node.category"></span></div>
+                <div style="font-size:14px;font-weight:600" data-style="color:${node.textColor}" data-text="node.name"></div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px" data-style="color:${node.statusTextColor}" data-text="node.statusLabel"></div>
+                <div style="position:absolute;left:0;right:0;bottom:0;height:3px" data-style="background:${node.progressTrack}"><div style="height:100%;background:var(--teal)" data-style="width:${node.progressPct}"></div></div>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <div style="width:322px;flex:none;display:flex;flex-direction:column;gap:12px;overflow-y:auto">
+          <div style="background:oklch(23% 0.03 200 / 0.6);border:1px solid oklch(74% 0.135 178 / 0.3);padding:12px 14px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted)" data-text="researchOutputRowLabel"></span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--teal)" data-text="researchOutputLabel"></span>
+            </div>
+            <div style="font-size:11px;color:oklch(82% 0.008 235);line-height:1.45" data-text="researchActiveLabel"></div>
+          </div>
+
+          <div style="background:oklch(20% 0.024 235 / 0.9);border:1px solid oklch(92% 0.01 235 / 0.14);padding:18px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px" data-text="selectedTechNode.category"></div>
+            <div style="font-size:16px;font-weight:700;margin-bottom:10px" data-text="selectedTechNode.name"></div>
+            <div style="font-size:12px;line-height:1.55;color:oklch(80% 0.008 235);margin-bottom:14px" data-text="selectedTechNode.description"></div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px"><span class="muted" data-text="t.cost"></span><span class="mono" data-text="selectedTechNode.costRp"></span></div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px"><span class="muted" data-text="t.researchFunding"></span><span class="mono" data-text="selectedTechNode.costCr"></span></div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;padding-bottom:8px;border-bottom:1px solid oklch(92% 0.01 235 / 0.08)"><span class="muted" data-text="t.researchEta"></span><span class="mono" data-text="selectedTechNode.etaLabel"></span></div>
+            <div data-if="selectedTechNode.hasPrereq" hidden="" style="display:contents">
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:8px"><span class="muted" data-text="t.requires"></span><span class="mono" data-text="selectedTechNode.prereqName"></span></div>
+            </div>
+            <div data-if="selectedTechNode.inQueue" hidden="" style="display:contents">
+              <div style="height:4px;background:oklch(30% 0.02 235);overflow:hidden;margin:12px 0 4px"><div style="height:100%;background:var(--teal)" data-style="width:${selectedTechNode.progressPct}"></div></div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:oklch(78% 0.01 235)" data-text="selectedTechNode.progressLabel"></div>
+            </div>
+            <button style="width:100%;padding:10px 0;font-size:12px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;margin-top:12px" data-on="click:selectedTechNode.onAction" data-style="background:${selectedTechNode.btnBg};border:1px solid ${selectedTechNode.btnBorder};color:${selectedTechNode.btnColor};cursor:${selectedTechNode.btnCursor}" data-attr="disabled:${selectedTechNode.researchDisabled}" data-text="selectedTechNode.btnLabel"></button>
+          </div>
+
+          <div style="background:oklch(20% 0.024 235 / 0.9);border:1px solid oklch(92% 0.01 235 / 0.14);padding:16px 16px 8px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px" data-text="researchQueueTitle"></div>
+            <div data-if="researchQueueEmpty" hidden="" style="display:contents">
+              <div style="font-size:11px;color:oklch(66% 0.01 235);line-height:1.5;padding-bottom:8px" data-text="researchQueueEmptyMsg"></div>
+            </div>
+            <template data-for="rq in researchQueueList">
+              <div style="margin-bottom:10px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;flex:none" data-style="color:${rq.barColor}" data-text="rq.pos"></span>
+                  <span style="font-size:11.5px;color:oklch(92% 0.006 235);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" data-text="rq.name"></span>
+                  <button style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;padding:0 2px" data-on="click:rq.onUp">▲</button>
+                  <button style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;padding:0 2px" data-on="click:rq.onDown">▼</button>
+                  <button style="background:none;border:none;color:oklch(70% 0.14 30);font-size:11px;cursor:pointer;padding:0 2px" data-on="click:rq.onRemove">✕</button>
+                </div>
+                <div style="height:3px;background:oklch(30% 0.02 235);overflow:hidden"><div style="height:100%" data-style="width:${rq.pct};background:${rq.barColor}"></div></div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:oklch(70% 0.01 235);margin-top:3px" data-text="rq.eta"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DIPLOMACY OVERLAY -->
+  <div data-if="isDiplomacyOverlay" hidden="" style="display:contents">
+    <div style="position:absolute;inset:0;background:oklch(11% 0.02 235 / 0.97);backdrop-filter:blur(6px);z-index:50;animation:overlayIn 0.18s ease-out;padding:40px 64px;box-sizing:border-box;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:32px">
+        <div>
+          <div class="ov-title" data-text="t.factionRelations"></div>
+          <div class="ov-sub"><span data-text="colonyName"></span> · <span data-text="t.diplomaticOverview"></span></div>
+        </div>
+        <button class="ov-close" data-on="click:closeOverlay" data-text="t.close"></button>
+      </div>
+
+      <div style="display:flex;gap:20px;margin-bottom:24px">
+        <template data-for="f in diploFactions">
+          <button style="flex:1;text-align:left;background:oklch(20% 0.024 235 / 0.85);padding:22px;box-sizing:border-box;cursor:pointer;color:oklch(92% 0.006 235);font-family:'Space Grotesk',system-ui,sans-serif" data-on="click:f.onSelect" data-style="border:1px solid ${f.cardBorder}">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+              <div style="width:24px;height:24px;flex:none" data-style="background:${f.emblemBg};border-radius:${f.emblemRadius};transform:${f.emblemTransform}"></div>
+              <div style="font-size:17px;font-weight:700;color:oklch(97% 0.004 235)" data-text="f.name"></div>
+              <div data-if="f.selected" hidden="" style="display:contents">
+                <div style="width:7px;height:7px;border-radius:50%;background:var(--teal);margin-left:auto"></div>
+              </div>
+            </div>
+            <div style="font-size:12px;color:oklch(70% 0.01 235);margin-bottom:16px;line-height:1.4" data-text="f.descriptor"></div>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+              <div class="kv-sm"><span class="muted" data-text="t.territories"></span><span class="mono" data-text="f.territories"></span></div>
+              <div class="kv-sm"><span class="muted" data-text="t.population"></span><span class="mono" data-text="f.population"></span></div>
+              <div data-if="showDetailedStats" hidden="" style="display:contents">
+                <div class="kv-sm"><span class="muted" data-text="t.militaryStrength"></span><span style="font-family:'JetBrains Mono',monospace;letter-spacing:0.05em" data-text="f.military"></span></div>
+              </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:10px;letter-spacing:0.05em;text-transform:uppercase;color:var(--muted);margin-bottom:6px"><span><span data-text="t.standingWith"></span> <span data-text="colonyName"></span></span><span style="font-family:'JetBrains Mono',monospace" data-style="color:${f.accentColor}" data-text="f.relationPct"></span></div>
+            <div style="height:6px;background:oklch(30% 0.02 235);margin-bottom:8px;overflow:hidden"><div style="height:100%;transition:width 0.3s ease" data-style="width:${f.relationPct};background:${f.accentColor}"></div></div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:12px;font-weight:600" data-style="color:${f.accentColor}" data-text="f.standingLabel"></span>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">
+                <template data-for="tb in f.treatyBadges">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:0.04em;text-transform:uppercase;color:oklch(72% 0.13 150);border:1px solid oklch(70% 0.13 150 / 0.5);padding:2px 5px" data-text="tb"></span>
+                </template>
+              </div>
+            </div>
+          </button>
+        </template>
+      </div>
+
+      <div style="display:flex;gap:20px;margin-bottom:22px;align-items:flex-start">
+        <div style="flex:1;background:oklch(20% 0.024 235 / 0.7);border:1px solid oklch(92% 0.01 235 / 0.12);padding:20px 22px;box-sizing:border-box">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px">
+            <div style="font-size:15px;font-weight:700" data-text="diploSel.name"></div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600" data-style="color:${diploSel.relColor}"><span data-text="diploSel.standingLabel"></span> · <span data-text="diploSel.relationPct"></span></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:18px">
+            <div class="kv"><span class="muted" data-text="t.dLeader"></span><span data-text="diploSel.leader"></span></div>
+            <div class="kv"><span class="muted" data-text="t.dStance"></span><span data-text="diploSel.stance"></span></div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;gap:16px"><span style="color:var(--muted);flex:none" data-text="t.dWants"></span><span style="text-align:right;color:oklch(78% 0.14 72)" data-text="diploSel.wants"></span></div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;gap:16px"><span style="color:var(--muted);flex:none" data-text="t.dAlly"></span><span style="text-align:right;color:oklch(72% 0.13 150)" data-text="diploSel.ally"></span></div>
+          </div>
+          <div class="section-label" data-text="t.dStanding"></div>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <template data-for="l in diploLadder">
+              <div style="display:flex;align-items:center;gap:10px;padding:5px 8px" data-style="background:${l.bg};border-left:2px solid ${l.color}">
+                <span style="font-size:11.5px;color:oklch(85% 0.006 235)" data-text="l.label"></span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:oklch(58% 0.012 235);margin-left:auto" data-text="l.min"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div style="width:320px;flex:none;display:flex;flex-direction:column;gap:16px">
+          <div>
+            <div class="section-label" data-text="t.dActions"></div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <template data-for="a in diploActionBtns">
+                <button style="padding:9px 14px;font-size:12px;font-weight:600;letter-spacing:0.02em;cursor:pointer;text-align:left" data-on="click:a.onClick" data-style="background:${a.bg};border:1px solid ${a.border};color:${a.color}" data-text="a.label"></button>
+              </template>
+            </div>
+          </div>
+          <div>
+            <div class="section-label" data-text="t.dTreaties"></div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <template data-for="tr in diploTreatyBtns">
+                <button style="display:flex;flex-direction:column;gap:3px;padding:9px 12px;background:oklch(23% 0.025 235 / 0.6);text-align:left" data-on="click:tr.onClick" data-style="border:1px solid ${tr.border};cursor:${tr.cursor}">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline">
+                    <span style="font-size:12px;font-weight:600" data-style="color:${tr.color}" data-text="tr.name"></span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:10px" data-style="color:${tr.btnColor}" data-text="tr.stateLabel"></span>
+                  </div>
+                  <span style="font-size:10px;color:oklch(56% 0.012 235)" data-text="tr.fx"></span>
+                </button>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px" data-text="t.recentDiplo"></div>
+        <template data-for="entry in diploLog">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:oklch(75% 0.01 235);padding:8px 0;border-bottom:1px solid oklch(92% 0.01 235 / 0.06)" data-text="entry"></div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOW TO PLAY / CODEX OVERLAY -->
+  <div data-if="isCodexOverlay" hidden="" style="display:contents">
+    <div style="position:absolute;inset:0;background:oklch(11% 0.02 235 / 0.97);backdrop-filter:blur(6px);z-index:50;animation:overlayIn 0.18s ease-out;padding:40px 56px;box-sizing:border-box;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:26px">
+        <div>
+          <div class="ov-title" data-text="codexTitle"></div>
+          <div class="ov-sub" data-text="codexSub"></div>
+        </div>
+        <button class="ov-close" data-on="click:closeOverlay" data-text="t.close"></button>
+      </div>
+
+      <div style="max-width:1120px;display:flex;flex-direction:column;gap:36px">
+
+        <div>
+          <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:var(--teal);margin-bottom:16px;border-bottom:1px solid oklch(92% 0.01 235 / 0.12);padding-bottom:8px" data-text="codexSecGuide"></div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(330px, 1fr));gap:14px">
+            <template data-for="g in codexGuide">
+              <div style="background:oklch(20% 0.024 235 / 0.7);border:1px solid oklch(92% 0.01 235 / 0.12);padding:14px 16px">
+                <div style="font-size:12.5px;font-weight:600;color:oklch(88% 0.06 178);margin-bottom:7px" data-text="g.heading"></div>
+                <div style="font-size:12px;line-height:1.6;color:oklch(80% 0.008 235)" data-text="g.body"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:var(--teal);margin-bottom:14px;border-bottom:1px solid oklch(92% 0.01 235 / 0.12);padding-bottom:8px" data-text="codexSecBuildings"></div>
+
+          <div style="display:flex;gap:6px;margin-bottom:20px">
+            <template data-for="lt in codexLocTabs">
+              <button style="padding:8px 20px;font-size:12px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;cursor:pointer" data-on="click:lt.onClick" data-style="background:${lt.bg};border:1px solid ${lt.border};color:${lt.color}" data-text="lt.label"></button>
+            </template>
+          </div>
+
+          <template data-for="tr in codexTiers">
+            <div style="margin-bottom:30px">
+              <div style="font-size:13px;font-weight:700;color:oklch(90% 0.05 178);margin-bottom:3px" data-text="tr.name"></div>
+              <div style="font-size:11.5px;color:var(--muted);margin-bottom:14px" data-text="tr.desc"></div>
+              <template data-for="grp in tr.groups">
+                <div style="margin-bottom:14px">
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:oklch(60% 0.02 235);margin-bottom:8px" data-text="grp.category"></div>
+                  <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(244px, 1fr));gap:10px">
+                    <template data-for="it in grp.items">
+                      <div style="background:oklch(19% 0.022 235 / 0.85);padding:12px 13px" data-style="border:1px solid ${it.cardBorder}">
+                        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:8px">
+                          <span style="font-size:13px;font-weight:600" data-style="color:${it.nameColor}" data-text="it.name"></span>
+                          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted)" data-text="it.mono"></span>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:3px">
+                          <template data-for="r in it.rows">
+                            <div style="display:flex;justify-content:space-between;gap:10px;font-size:11px"><span style="color:var(--muted)" data-text="r.k"></span><span style="font-family:'JetBrains Mono',monospace;text-align:right" data-style="color:${r.c}" data-text="r.v"></span></div>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <div data-if="codexShowBelt" hidden="" style="display:contents">
+            <div style="border:1px dashed oklch(60% 0.02 235 / 0.4);padding:34px 30px;text-align:center;background:oklch(16% 0.02 235 / 0.5)">
+              <div style="font-size:13.5px;font-weight:600;color:oklch(78% 0.06 72);margin-bottom:10px" data-text="codexBeltTitle"></div>
+              <div style="font-size:12px;line-height:1.6;color:oklch(72% 0.01 235);max-width:520px;margin:0 auto" data-text="codexBeltBody"></div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:var(--teal);margin-bottom:16px;border-bottom:1px solid oklch(92% 0.01 235 / 0.12);padding-bottom:8px" data-text="codexSecChains"></div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <template data-for="ch in codexChains">
+              <div style="background:oklch(20% 0.024 235 / 0.7);border:1px solid oklch(92% 0.01 235 / 0.12);padding:12px 14px">
+                <div style="font-size:12.5px;font-weight:600;color:oklch(88% 0.06 178);margin-bottom:9px" data-text="ch.name"></div>
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:7px;font-family:'JetBrains Mono',monospace;font-size:11px">
+                  <template data-for="inp in ch.inputs">
+                    <span style="padding:3px 7px;background:oklch(26% 0.03 235 / 0.8);color:oklch(82% 0.01 235)" data-text="inp.building"></span>
+                    <span style="color:var(--muted)">→ <span data-text="inp.res"></span> →</span>
+                  </template>
+                  <span style="padding:3px 7px;background:oklch(30% 0.06 150 / 0.5);color:oklch(84% 0.1 150)"><span data-text="ch.output"></span> +<span data-text="ch.rate"></span></span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- FULLSCREEN MAP OVERLAY -->
+  <div data-if="isMapOverlay" hidden="" style="display:contents">
+    <div style="position:absolute;inset:0;background:oklch(11% 0.02 235 / 0.97);backdrop-filter:blur(6px);z-index:50;animation:overlayIn 0.18s ease-out;padding:36px 48px;box-sizing:border-box;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:22px">
+        <div>
+          <div class="ov-title" data-text="t.sectorMap"></div>
+          <div class="ov-sub"><span data-text="colonyName"></span> · <span data-text="t.sectorSub"></span></div>
+        </div>
+        <button class="ov-close" data-on="click:closeOverlay" data-text="t.close"></button>
+      </div>
+
+      <div style="display:flex;gap:28px;align-items:flex-start">
+        <div style="flex:1;position:relative;aspect-ratio:16/9;min-width:0;background:oklch(10% 0.018 235);border:1px solid oklch(92% 0.01 235 / 0.14);overflow:hidden;box-sizing:border-box;cursor:grab;touch-action:none" data-on="wheel:mapWheel;pointerdown:mapPointerDown;pointermove:mapPointerMove;pointerup:mapPointerUp;pointerleave:mapPointerUp">
+          <div style="position:absolute;left:50%;top:50%;transform-origin:center center;will-change:transform" data-style="width:${mapWorldW};height:${mapWorldH};transform:${mapWorldTransform};transition:${mapWorldTransition}">
+            <svg viewBox="0 0 6000 3400" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible">
+              <g data-for="sec in mapSectors">
+                <polygon stroke-linejoin="round" style="transition:opacity 0.5s ease" data-style="opacity:${sec.polyOpacity};pointer-events:${sec.pointerEvents}" data-attr="points:${sec.points};fill:${sec.fill};stroke:${sec.stroke};stroke-width:${sec.strokeWidth}"></polygon>
+              </g>
+              <rect x="2760" y="1500" width="640" height="380" fill="oklch(56% 0.13 178 / 0.08)" stroke="oklch(74% 0.135 178 / 0.65)" stroke-width="4"></rect>
+            </svg>
+            <template data-for="sec in mapSectors">
+              <div style="position:absolute;transform:translate(-50%,-50%);text-align:center;pointer-events:none;transition:opacity 0.5s ease" data-style="left:${sec.labelLeft};top:${sec.labelTop};opacity:${sec.textOpacity}">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:74px;font-weight:700;letter-spacing:0.06em;white-space:nowrap" data-style="color:${sec.labelColor}" data-text="sec.name"></div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:40px;letter-spacing:0.05em;text-transform:uppercase;margin-top:10px;white-space:nowrap" data-style="color:${sec.subColor}" data-text="sec.statusLabel"></div>
+              </div>
+            </template>
+            <template data-for="mb in mapBuildings">
+              <div style="position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none" data-style="left:${mb.leftPx};top:${mb.topPx}" data-attr="title:${mb.name}">
+                <div style="width:26px;height:26px;background:var(--teal);box-shadow:0 0 22px oklch(74% 0.135 178 / 0.75)"></div>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:19px;color:oklch(92% 0.01 235);background:oklch(12% 0.02 235 / 0.85);padding:2px 8px;white-space:nowrap" data-text="mb.mono"></span>
+              </div>
+            </template>
+          </div>
+
+          <!-- PLANET VIEW — the sphere is a real Three.js scene (PlanetGlobe3D),
+               driven by planetYaw / planetPitch; the sector chips below are HTML
+               positioned by projectGlobe() to sit exactly on the rendered disc. -->
+          <div data-if="isMapPlanet" hidden="" style="display:contents">
+            <div style="position:absolute;inset:0;z-index:3;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 42%, oklch(12% 0.02 265) 0%, oklch(7% 0.015 268) 68%, oklch(5% 0.012 270) 100%);animation:overlayIn 0.35s ease-out;overflow:hidden">
+              <div style="position:absolute;inset:0;background:radial-gradient(1.5px 1.5px at 16% 24%, oklch(88% 0.02 60 / 0.6), transparent), radial-gradient(1px 1px at 72% 18%, oklch(85% 0.02 60 / 0.5), transparent), radial-gradient(1px 1px at 38% 66%, oklch(85% 0.02 60 / 0.4), transparent), radial-gradient(1.5px 1.5px at 86% 58%, oklch(88% 0.02 60 / 0.55), transparent), radial-gradient(1px 1px at 54% 88%, oklch(85% 0.02 60 / 0.35), transparent), radial-gradient(1px 1px at 8% 80%, oklch(85% 0.02 60 / 0.4), transparent), radial-gradient(1px 1px at 92% 34%, oklch(85% 0.02 60 / 0.4), transparent)"></div>
+
+              <div style="position:relative" data-style="width:${globePx}px;height:${globePx}px">
+                <div style="position:absolute;inset:0" data-ref="marsCanvasRef"></div>
+
+                <template data-for="ps in globeSectors">
+                  <div style="position:absolute;display:flex;align-items:center;gap:5px;padding:3px 7px;white-space:nowrap;pointer-events:none" data-style="left:${ps.leftPct};top:${ps.topPct};transform:translate(-50%,-50%) scale(${ps.scale});opacity:${ps.opacity};background:${ps.chipBg};border:1px solid ${ps.chipBorder}">
+                    <div style="width:5px;height:5px;border-radius:50%;flex:none" data-style="background:${ps.dot}"></div>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;letter-spacing:0.06em" data-style="color:${ps.chipColor}" data-text="ps.chipLabel"></span>
+                  </div>
+                </template>
+              </div>
+
+              <div style="position:absolute;left:0;right:0;bottom:52px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;letter-spacing:0.22em;color:oklch(80% 0.09 48)" data-text="planetName"></div>
+              <div style="position:absolute;left:0;right:0;bottom:30px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:oklch(52% 0.03 45)" data-text="planetHint"></div>
+            </div>
+          </div>
+
+          <div style="position:absolute;left:14px;top:14px;z-index:4;display:flex;gap:6px;align-items:center">
+            <button style="background:oklch(23% 0.025 235 / 0.92);border:1px solid oklch(74% 0.135 178 / 0.4);color:oklch(88% 0.06 178);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.06em;padding:7px 12px;cursor:pointer" data-on="click:toggleMapScope" data-text="mapScopeLabel"></button>
+            <button style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:oklch(23% 0.025 235 / 0.92);border:1px solid oklch(74% 0.135 178 / 0.4);color:oklch(88% 0.06 178);cursor:pointer;padding:0" data-on="click:togglePlanet" data-attr="title:${planetViewLabel}">
+              <div style="position:relative;width:16px;height:16px">
+                <div style="position:absolute;left:2.5px;top:2.5px;width:11px;height:11px;border-radius:50%;background:currentColor"></div>
+                <div style="position:absolute;left:-3px;top:5.5px;width:22px;height:6px;border:1.5px solid currentColor;border-radius:50%;transform:rotate(-22deg)"></div>
+              </div>
+            </button>
+          </div>
+
+          <div data-if="mapControlsVisible" hidden="" style="display:contents">
+            <div style="position:absolute;right:14px;top:14px;display:flex;flex-direction:column;gap:6px;z-index:2">
+              <button class="zoom-btn" data-on="click:mapZoomIn">+</button>
+              <button class="zoom-btn" data-on="click:mapZoomOut">−</button>
+              <button class="zoom-btn" style="font-size:12px" data-on="click:mapZoomReset">⟲</button>
+            </div>
+            <div style="position:absolute;right:14px;bottom:14px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.06em;color:oklch(66% 0.012 235);background:oklch(14% 0.02 235 / 0.7);padding:3px 7px" data-text="mapZoomLabel"></div>
+            <div style="position:absolute;left:16px;bottom:14px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.06em;color:oklch(52% 0.012 235);text-transform:uppercase" data-text="mapHint"></div>
+          </div>
+        </div>
+
+        <div style="width:320px;flex:none;display:flex;flex-direction:column;gap:20px">
+          <div>
+            <div class="kv-mb"><span class="muted" data-text="t.ecoIndex"></span><span class="mono-teal" data-text="ecoIndexDisplay"></span></div>
+            <div style="height:6px;background:oklch(30% 0.02 235)"><div style="height:100%;background:oklch(60% 0.13 178)" data-style="width:${ecoBarWidth}"></div></div>
+          </div>
+
+          <div>
+            <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px" data-text="t.resourcesLabel"></div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <template data-for="res in resources">
+                <div style="display:flex;align-items:center;justify-content:space-between">
+                  <div style="display:flex;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-attr="stroke:${res.dotColor}"><g data-for="ip in res.icon"><path data-attr="d:${ip}"></path></g></svg><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted)" data-text="res.code"></span></div>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px" data-text="res.value"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px"><span data-text="t.structures"></span><span style="font-family:'JetBrains Mono',monospace;color:oklch(88% 0.01 235)" data-text="mapBuildingCount"></span></div>
+            <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
+              <template data-for="cc in mapCategoryCounts">
+                <div class="kv"><span style="color:oklch(75% 0.01 235)" data-text="cc.label"></span><span style="font-family:'JetBrains Mono',monospace;color:var(--muted)" data-text="cc.count"></span></div>
+              </template>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:5px;max-height:280px;overflow-y:auto">
+              <template data-for="mb in mapBuildings">
+                <div style="display:flex;align-items:center;gap:8px;padding:7px 9px;background:oklch(23% 0.025 235 / 0.6);border:1px solid oklch(92% 0.01 235 / 0.1)">
+                  <div style="width:18px;height:18px;flex:none;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--teal);border:1px solid oklch(74% 0.135 178 / 0.4)" data-text="mb.mono"></div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" data-text="mb.name"></div>
+                    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:oklch(58% 0.012 235)" data-text="mb.category"></div>
+                  </div>
+                </div>
+              </template>
+              <div data-if="mapEmpty" hidden="" style="display:contents">
+                <div style="font-size:11.5px;color:oklch(56% 0.012 235);padding:8px 0" data-text="t.noStructures"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SOLAR SYSTEM OVERLAY -->
+  <div data-if="isSystemOverlay" hidden="" style="display:contents">
+    <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 44%, oklch(12% 0.025 262) 0%, oklch(7% 0.015 268) 62%, oklch(4% 0.01 272) 100%);z-index:50;animation:overlayIn 0.22s ease-out;overflow:hidden">
+      <div style="position:absolute;inset:-9%;background-size:cover;background-position:center;opacity:0.5" data-style="background-image:url(${milkyWayTex})"></div>
+      <div style="position:absolute;inset:0;background:radial-gradient(46% 42% at 20% 26%, oklch(42% 0.1 268 / 0.16), transparent 72%), radial-gradient(42% 40% at 84% 74%, oklch(46% 0.08 205 / 0.13), transparent 72%), radial-gradient(70% 30% at 60% 50%, oklch(50% 0.06 300 / 0.06), transparent 75%)"></div>
+      <div style="position:absolute;left:9%;top:60%;width:26vw;height:16vw;background:radial-gradient(ellipse, oklch(56% 0.15 318 / 0.1), oklch(48% 0.12 268 / 0.05) 55%, transparent 78%);filter:blur(26px);transform:rotate(-22deg)"></div>
+      <div style="position:absolute;right:6%;top:12%;width:20vw;height:22vw;background:radial-gradient(ellipse, oklch(58% 0.13 210 / 0.09), transparent 72%);filter:blur(30px);transform:rotate(14deg)"></div>
+      <div style="position:absolute;left:52%;bottom:6%;width:30vw;height:12vw;background:radial-gradient(ellipse, oklch(52% 0.1 30 / 0.06), transparent 74%);filter:blur(34px)"></div>
+      <div style="position:absolute;inset:-6%;background:radial-gradient(1.6px 1.6px at 12% 22%, oklch(92% 0.02 60 / 0.7), transparent), radial-gradient(1px 1px at 74% 16%, oklch(88% 0.02 60 / 0.55), transparent), radial-gradient(1px 1px at 34% 62%, oklch(86% 0.02 60 / 0.4), transparent), radial-gradient(1.8px 1.8px at 88% 54%, oklch(92% 0.03 220 / 0.6), transparent), radial-gradient(1px 1px at 52% 86%, oklch(86% 0.02 60 / 0.35), transparent), radial-gradient(1px 1px at 6% 78%, oklch(86% 0.02 60 / 0.4), transparent), radial-gradient(1px 1px at 94% 32%, oklch(86% 0.02 60 / 0.4), transparent), radial-gradient(1.4px 1.4px at 28% 12%, oklch(90% 0.03 40 / 0.55), transparent), radial-gradient(1px 1px at 62% 30%, oklch(84% 0.02 60 / 0.35), transparent), radial-gradient(1px 1px at 44% 44%, oklch(84% 0.02 60 / 0.3), transparent), radial-gradient(1.3px 1.3px at 78% 88%, oklch(88% 0.03 220 / 0.5), transparent), radial-gradient(1px 1px at 16% 52%, oklch(84% 0.02 60 / 0.3), transparent), radial-gradient(1px 1px at 90% 8%, oklch(86% 0.02 60 / 0.4), transparent), radial-gradient(1px 1px at 4% 34%, oklch(84% 0.02 60 / 0.3), transparent);opacity:0.55"></div>
+
+      <div style="position:absolute;inset:0;pointer-events:none;z-index:2;background:radial-gradient(ellipse 72% 66% at 50% 47%, transparent 38%, oklch(4% 0.012 272 / 0.62) 100%)"></div>
+
+      <div style="position:absolute;top:36px;left:48px;right:48px;display:flex;justify-content:space-between;align-items:baseline;z-index:3">
+        <div>
+          <div style="font-size:22px;font-weight:700;letter-spacing:0.03em" data-text="t.solarSystem"></div>
+          <div class="ov-sub"><span data-text="colonyName"></span> · <span data-text="t.sysStarName"></span></div>
+        </div>
+        <button class="ov-close" data-on="click:closeOverlay" data-text="t.close"></button>
+      </div>
+
+      <div style="position:absolute;inset:0;cursor:grab" data-ref="sysCanvasRef"></div>
+
+      <div style="position:absolute;top:104px;right:48px;width:292px;background:oklch(18% 0.022 250 / 0.82);backdrop-filter:blur(16px);border:1px solid oklch(92% 0.01 235 / 0.14);padding:20px 22px;z-index:3;box-sizing:border-box;animation:panelIn 0.18s ease-out" data-style="border-top:2px solid ${systemSel.color}">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
+          <canvas width="128" height="128" style="width:54px;height:54px;border-radius:50%;flex:none" data-ref="sysPanelCanvasRef" data-style="box-shadow:0 0 20px ${systemSel.color}"></canvas>
+          <div style="font-size:16px;font-weight:700;letter-spacing:0.04em" data-text="systemSel.name"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:14px">
+          <div class="kv"><span class="muted" data-text="t.sysType"></span><span data-text="systemSel.kind"></span></div>
+          <div class="kv"><span class="muted" data-text="t.sysStatusRow"></span><span style="font-weight:600" data-style="color:${systemSel.statusColor}" data-text="systemSel.status"></span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;gap:14px"><span style="color:var(--muted);flex:none" data-text="systemSel.orbitLabel"></span><span style="font-family:'JetBrains Mono',monospace;text-align:right" data-text="systemSel.orbit"></span></div>
+        </div>
+        <div data-if="systemSel.hasDetail" hidden="" style="display:contents">
+          <div style="border-top:1px solid oklch(92% 0.01 235 / 0.1);padding-top:12px;margin-bottom:12px;display:flex;flex-direction:column;gap:9px">
+            <div class="kv"><span class="muted" data-text="t.sysOwner"></span><span style="font-weight:600" data-style="color:${systemSel.ownerColor}" data-text="systemSel.owner"></span></div>
+            <div class="kv"><span class="muted" data-text="t.sysPop"></span><span class="mono" data-text="systemSel.pop"></span></div>
+            <div class="kv"><span class="muted" data-text="t.sysBuildings"></span><span class="mono" data-text="systemSel.buildings"></span></div>
+            <div>
+              <div class="section-label" style="margin-bottom:6px" data-text="t.sysRes"></div>
+              <div style="display:flex;flex-wrap:wrap;gap:5px">
+                <template data-for="rc in systemSel.res">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 7px;background:oklch(28% 0.02 235 / 0.7);color:var(--text-2)" data-text="rc"></span>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div data-if="systemSel.hasMoons" hidden="" style="display:contents">
+          <div style="margin-bottom:12px">
+            <div class="section-label" style="margin-bottom:6px" data-text="t.sysMoonsRow"></div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px">
+              <template data-for="mn in systemSel.moons">
+                <button style="font-family:'JetBrains Mono',monospace;font-size:10px;padding:3px 9px;background:oklch(24% 0.03 235 / 0.7);border:1px solid oklch(92% 0.01 235 / 0.14);color:var(--text-2);cursor:pointer" data-on="click:mn.onSelect" data-text="mn.name"></button>
+              </template>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:12px;line-height:1.6;color:oklch(78% 0.008 235)" data-text="systemSel.note"></div>
+
+        <div data-if="systemSel.colony.owned" hidden="" style="display:contents">
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid oklch(92% 0.01 235 / 0.12)">
+            <div class="kv"><span class="muted" data-text="t.sysOutpostLevel"></span><span class="mono-teal"><span data-text="systemSel.colony.level"></span> / 3</span></div>
+            <div class="kv"><span class="muted" data-text="t.sysOutpostYield"></span><span class="mono" data-text="systemSel.colony.yieldLabel"></span></div>
+          </div>
+        </div>
+        <div data-if="systemSel.colony.canUpgrade" hidden="" style="display:contents">
+          <button style="width:100%;margin-top:8px;padding:8px 0;background:oklch(56% 0.13 178 / 0.16);border:1px solid oklch(56% 0.13 178 / 0.5);color:var(--teal);font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;cursor:pointer" data-on="click:systemSel.colony.onUpgrade" data-text="systemSel.colony.upgradeLabel"></button>
+        </div>
+        <div data-if="systemSel.colony.canSurvey" hidden="" style="display:contents">
+          <button style="width:100%;margin-top:12px;padding:9px 0;background:oklch(24% 0.03 235 / 0.8);border:1px solid oklch(74% 0.135 178 / 0.35);color:oklch(84% 0.02 178);font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;cursor:pointer" data-on="click:systemSel.colony.onSurvey" data-text="systemSel.colony.surveyLabel"></button>
+        </div>
+        <div data-if="systemSel.colony.canClaim" hidden="" style="display:contents">
+          <button style="width:100%;margin-top:12px;padding:9px 0;background:oklch(30% 0.09 150 / 0.4);border:1px solid oklch(70% 0.13 150 / 0.55);color:oklch(78% 0.13 150);font-size:11px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;cursor:pointer" data-on="click:systemSel.colony.onClaim" data-text="systemSel.colony.claimLabel"></button>
+        </div>
+        <div data-if="systemSel.colony.claimBlocked" hidden="" style="display:contents">
+          <div style="margin-top:12px;font-size:10.5px;color:oklch(74% 0.15 55);line-height:1.5" data-text="systemSel.colony.shipHint"></div>
+        </div>
+      </div>
+
+      <div style="position:absolute;right:48px;bottom:34px;display:flex;flex-direction:column;gap:6px;z-index:3">
+        <button class="zoom-btn" style="width:26px;font-size:12px;color:oklch(88% 0.06 178)" data-on="click:sysToggleFleets" data-style="background:${sysFleetBtnColor}" data-attr="title:${t.sysToggleFleets}">⛴</button>
+        <button class="zoom-btn" data-on="click:sysZoomIn">+</button>
+        <button class="zoom-btn" data-on="click:sysZoomOut">−</button>
+        <button class="zoom-btn" style="font-size:12px" data-on="click:sysResetCamera">⟲</button>
+      </div>
+      <div style="position:absolute;left:50%;bottom:30px;transform:translateX(-50%);display:flex;align-items:center;gap:7px;z-index:3;background:oklch(15% 0.02 250 / 0.72);backdrop-filter:blur(12px);border:1px solid oklch(92% 0.01 235 / 0.12);padding:6px 8px 6px 6px">
+        <button style="width:28px;height:26px;background:oklch(24% 0.03 235 / 0.8);border:1px solid oklch(92% 0.01 235 / 0.16);color:var(--teal);font-size:11px;line-height:1;cursor:pointer;font-family:'JetBrains Mono',monospace" data-on="click:sysTogglePause" data-attr="title:${t.sysPause}" data-text="sysPauseIcon"></button>
+        <div style="width:1px;height:16px;background:oklch(92% 0.01 235 / 0.14)"></div>
+        <button style="min-width:30px;height:26px;border:1px solid oklch(92% 0.01 235 / 0.16);color:oklch(85% 0.008 235);font-size:10px;cursor:pointer;font-family:'JetBrains Mono',monospace" data-on="click:sysSpd1" data-style="background:${sysSpdIs1}">×1</button>
+        <button style="min-width:30px;height:26px;border:1px solid oklch(92% 0.01 235 / 0.16);color:oklch(85% 0.008 235);font-size:10px;cursor:pointer;font-family:'JetBrains Mono',monospace" data-on="click:sysSpd10" data-style="background:${sysSpdIs10}">×10</button>
+        <button style="min-width:34px;height:26px;border:1px solid oklch(92% 0.01 235 / 0.16);color:oklch(85% 0.008 235);font-size:10px;cursor:pointer;font-family:'JetBrains Mono',monospace" data-on="click:sysSpd100" data-style="background:${sysSpdIs100}">×100</button>
+        <div style="width:1px;height:16px;background:oklch(92% 0.01 235 / 0.14)"></div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.06em;color:var(--text-2);padding:0 6px" data-text="systemDate"></span>
+      </div>
+      <div style="position:absolute;left:48px;bottom:34px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.06em;color:oklch(52% 0.03 45);text-transform:uppercase;z-index:3" data-text="sysHint"></div>
+      <div style="position:absolute;right:48px;bottom:14px;font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:0.04em;color:oklch(46% 0.02 250);z-index:3">Textures: Solar System Scope · CC BY 4.0</div>
+    </div>
+  </div>
+
+  <!-- MAIN MENU (launch screen) -->
+  <div data-if="isLaunch" hidden="" style="display:contents">
+    <div style="position:absolute;inset:0;z-index:90;overflow:hidden;background:radial-gradient(ellipse at 32% 40%, oklch(15% 0.03 264) 0%, oklch(8% 0.018 268) 58%, oklch(5% 0.012 272) 100%);font-family:'Space Grotesk',system-ui,sans-serif">
+      <div style="position:absolute;inset:0;background:radial-gradient(40% 44% at 22% 30%, oklch(46% 0.11 268 / 0.18), transparent 72%), radial-gradient(38% 40% at 82% 78%, oklch(48% 0.09 205 / 0.14), transparent 72%)"></div>
+      <div style="position:absolute;inset:0;background:radial-gradient(1.6px 1.6px at 12% 22%, oklch(92% 0.02 60 / 0.7), transparent), radial-gradient(1px 1px at 74% 16%, oklch(88% 0.02 60 / 0.5), transparent), radial-gradient(1px 1px at 34% 62%, oklch(86% 0.02 60 / 0.4), transparent), radial-gradient(1.6px 1.6px at 88% 54%, oklch(92% 0.03 220 / 0.55), transparent), radial-gradient(1px 1px at 52% 86%, oklch(86% 0.02 60 / 0.35), transparent), radial-gradient(1px 1px at 6% 78%, oklch(86% 0.02 60 / 0.4), transparent), radial-gradient(1px 1px at 94% 32%, oklch(86% 0.02 60 / 0.4), transparent), radial-gradient(1.3px 1.3px at 28% 12%, oklch(90% 0.03 40 / 0.5), transparent), radial-gradient(1px 1px at 62% 30%, oklch(84% 0.02 60 / 0.35), transparent), radial-gradient(1px 1px at 44% 46%, oklch(84% 0.02 60 / 0.3), transparent), radial-gradient(1px 1px at 16% 52%, oklch(84% 0.02 60 / 0.3), transparent)"></div>
+
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse 66% 100% at 12% 50%, oklch(5% 0.012 272 / 0.5), transparent 70%)"></div>
+
+      <div style="position:absolute;top:40px;right:48px;display:flex;gap:10px;z-index:3">
+        <button style="background:oklch(20% 0.024 235 / 0.6);border:1px solid oklch(92% 0.01 235 / 0.16);padding:8px 10px;cursor:pointer;display:flex;align-items:center" data-on="click:toggleMusic" data-style="color:${musicBtnColor}" data-attr="title:${launch.setMusic}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <g data-for="ip in musicIcon"><path data-attr="d:${ip}"></path></g>
+          </svg>
+        </button>
+        <button style="background:oklch(20% 0.024 235 / 0.6);border:1px solid oklch(92% 0.01 235 / 0.16);color:oklch(85% 0.008 235);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.06em;padding:8px 14px;cursor:pointer" data-on="click:toggleLang" data-attr="title:${t.langSwitch}" data-text="langLabel"></button>
+      </div>
+
+      <div style="position:absolute;left:96px;top:50%;transform:translateY(-50%);z-index:3">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px">
+          <div style="width:20px;height:20px;background:oklch(56% 0.13 178);transform:rotate(45deg);flex:none;box-shadow:0 0 20px oklch(56% 0.13 178 / 0.6)"></div>
+          <div style="font-size:52px;font-weight:700;letter-spacing:0.1em;color:oklch(97% 0.004 235);line-height:1;white-space:nowrap" data-text="launch.title"></div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:oklch(64% 0.05 178);margin-bottom:48px;margin-left:36px" data-text="launch.tagline"></div>
+
+        <div data-if="launchMain" hidden="" style="display:contents">
+          <div style="display:flex;flex-direction:column;gap:2px;margin-left:38px">
+            <template data-for="li in launchItems">
+              <button style="text-align:left;background:none;border:none;border-left:2px solid oklch(92% 0.01 235 / 0.14);padding:9px 0 9px 20px;cursor:pointer;font-family:'Space Grotesk',system-ui,sans-serif;transition:padding-left 0.12s,border-color 0.12s" data-on="click:li.onClick">
+                <div style="font-weight:600;letter-spacing:0.01em" data-style="font-size:${li.fontSize};color:${li.color}" data-text="li.label"></div>
+                <div data-if="li.desc" hidden="" style="display:contents">
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:oklch(52% 0.012 235);letter-spacing:0.05em;margin-top:3px" data-text="li.desc"></div>
+                </div>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <div data-if="isLaunchNew" hidden="" style="display:contents">
+          <div style="margin-left:38px;width:560px;max-height:74vh;overflow-y:auto;padding-right:8px">
+            <button data-sfx="back" style="background:none;border:none;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.06em;cursor:pointer;margin-bottom:20px;padding:0" data-on="click:backLaunch">← <span data-text="launch.back"></span></button>
+            <div class="section-label" data-text="launch.colonyName"></div>
+            <div style="display:flex;gap:7px;margin-bottom:22px">
+              <template data-for="nn in ngNames">
+                <button style="padding:8px 16px;color:oklch(92% 0.006 235);font-size:13px;cursor:pointer" data-on="click:nn.onPick" data-style="background:${nn.bg};border:1px solid ${nn.border}" data-text="nn.name"></button>
+              </template>
+            </div>
+            <div class="section-label" data-text="launch.difficulty"></div>
+            <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:22px">
+              <template data-for="nd in ngDiffs">
+                <button style="text-align:left;padding:10px 13px;cursor:pointer;color:oklch(93% 0.006 235)" data-on="click:nd.onPick" data-style="background:${nd.bg};border:1px solid ${nd.border}">
+                  <div style="font-size:13px;font-weight:600;margin-bottom:2px" data-text="nd.name"></div>
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted)" data-text="nd.desc"></div>
+                </button>
+              </template>
+            </div>
+            <div class="section-label" data-text="launch.site"></div>
+            <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:26px">
+              <template data-for="ns in ngSites">
+                <button style="text-align:left;padding:10px 13px;cursor:pointer;color:oklch(93% 0.006 235)" data-on="click:ns.onPick" data-style="background:${ns.bg};border:1px solid ${ns.border}">
+                  <div style="font-size:13px;font-weight:600;margin-bottom:2px" data-text="ns.name"></div>
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted)" data-text="ns.desc"></div>
+                </button>
+              </template>
+            </div>
+            <button data-sfx="confirm" style="width:100%;padding:13px 0;background:oklch(56% 0.13 178 / 0.2);border:1px solid oklch(74% 0.135 178 / 0.55);color:oklch(88% 0.06 178);font-size:13px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer" data-on="click:beginNewGame" data-text="launch.begin"></button>
+          </div>
+        </div>
+
+        <div data-if="isLaunchLoad" hidden="" style="display:contents">
+          <div style="margin-left:38px;width:520px">
+            <button data-sfx="back" style="background:none;border:none;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.06em;cursor:pointer;margin-bottom:20px;padding:0" data-on="click:backLaunch">← <span data-text="launch.back"></span></button>
+            <div style="display:flex;flex-direction:column;gap:9px">
+              <template data-for="sl in loadSlots">
+                <button style="text-align:left;padding:14px 16px;background:oklch(23% 0.025 235 / 0.6);border:1px solid oklch(92% 0.01 235 / 0.1);cursor:pointer;color:oklch(93% 0.006 235)" data-on="click:sl.onClick">
+                  <div data-if="sl.empty" hidden="" style="display:contents">
+                    <div style="font-size:13px;color:var(--muted)" data-text="launch.empty"></div>
+                  </div>
+                  <div data-if="sl.filled" hidden="" style="display:contents">
+                    <div style="display:flex;justify-content:space-between;align-items:baseline">
+                      <span style="font-size:14px;font-weight:600" data-text="sl.name"></span>
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--teal);letter-spacing:0.05em" data-text="sl.tag"></span>
+                    </div>
+                    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-top:4px" data-text="sl.meta"></div>
+                    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:oklch(48% 0.012 235);margin-top:2px" data-text="sl.play"></div>
+                  </div>
+                </button>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <div data-if="isLaunchSettings" hidden="" style="display:contents">
+          <div style="margin-left:38px;width:460px">
+            <button data-sfx="back" style="background:none;border:none;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.06em;cursor:pointer;margin-bottom:20px;padding:0" data-on="click:backLaunch">← <span data-text="launch.back"></span></button>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:oklch(23% 0.025 235 / 0.6);border:1px solid oklch(92% 0.01 235 / 0.1)">
+                <span style="font-size:13px" data-text="launch.setLang"></span>
+                <button style="background:oklch(24% 0.03 235 / 0.8);border:1px solid oklch(92% 0.01 235 / 0.16);color:var(--teal);font-family:'JetBrains Mono',monospace;font-size:11px;padding:5px 12px;cursor:pointer" data-on="click:toggleLang" data-text="langLabel"></button>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:oklch(23% 0.025 235 / 0.6);border:1px solid oklch(92% 0.01 235 / 0.1)">
+                <span style="font-size:13px" data-text="launch.setMusic"></span>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <button style="width:24px;height:24px;background:oklch(24% 0.03 235 / 0.8);border:1px solid oklch(92% 0.01 235 / 0.16);color:oklch(85% 0.008 235);cursor:pointer;padding:0" data-on="click:setMusicDown">−</button>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px;min-width:38px;text-align:center" data-text="musicVolPct"></span>
+                  <button style="width:24px;height:24px;background:oklch(24% 0.03 235 / 0.8);border:1px solid oklch(92% 0.01 235 / 0.16);color:oklch(85% 0.008 235);cursor:pointer;padding:0" data-on="click:setMusicUp">+</button>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:oklch(23% 0.025 235 / 0.6);border:1px solid oklch(92% 0.01 235 / 0.1)">
+                <span style="font-size:13px" data-text="launch.setMotion"></span>
+                <button style="width:36px;height:20px;border-radius:10px;border:none;cursor:pointer;position:relative;padding:0" data-on="click:togglePrefReduceMotion" data-style="background:${pmTrackColor}">
+                  <div style="width:16px;height:16px;border-radius:50%;background:oklch(97% 0.004 235);position:absolute;top:2px;transition:left 0.15s" data-style="left:${pmKnobLeft}"></div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="position:absolute;left:96px;bottom:40px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;color:oklch(46% 0.012 235);z-index:3" data-text="launch.studio"></div>
+      <div style="position:absolute;right:48px;bottom:40px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;color:oklch(46% 0.012 235);z-index:3" data-text="launch.build"></div>
+    </div>
+  </div>
+
+  <!-- GAME MENU -->
+  <div data-if="isMenuOpen" hidden="" style="display:contents">
+    <div style="position:absolute;inset:0;z-index:60;background:oklch(11% 0.02 235 / 0.98);animation:overlayIn 0.18s ease-out;overflow:hidden">
+      <div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg, oklch(13% 0.02 235) 0px, oklch(13% 0.02 235) 60px, oklch(15% 0.022 235) 60px, oklch(15% 0.022 235) 120px)"></div>
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 70% 50%, transparent 30%, oklch(9% 0.02 235 / 0.7) 100%)"></div>
+
+      <button style="position:absolute;top:32px;right:40px;background:none;border:1px solid oklch(92% 0.01 235 / 0.16);color:oklch(80% 0.008 235);font-size:13px;padding:8px 16px;cursor:pointer;z-index:2" data-on="click:closeMenu" data-attr="title:${t.close}" data-text="t.close"></button>
+
+      <div style="position:absolute;left:72px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;z-index:2">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+          <div style="width:22px;height:22px;background:oklch(56% 0.13 178);transform:rotate(45deg);flex:none"></div>
+          <div style="font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--teal)" data-text="t.menuTitle"></div>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:oklch(58% 0.012 235);letter-spacing:0.06em;margin-bottom:34px"><span data-text="colonyName"></span> · <span data-text="t.sectorSub"></span></div>
+
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <template data-for="mi in menuItems">
+            <button style="text-align:left;padding:10px 20px 10px 0;background:none;border:none;padding-left:18px;font-family:'Space Grotesk',system-ui,sans-serif;font-size:24px;font-weight:600;letter-spacing:0.01em;cursor:pointer;transition:padding-left 0.12s" data-on="click:mi.onClick" data-style="border-left:2px solid ${mi.accent};color:${mi.color}" data-text="mi.label"></button>
+          </template>
+        </div>
+      </div>
+
+      <div style="position:absolute;left:72px;bottom:36px;font-family:'JetBrains Mono',monospace;font-size:10px;color:oklch(48% 0.012 235);letter-spacing:0.08em;z-index:2" data-text="t.menuVersion"></div>
+    </div>
+  </div>
+
+</div>
+</div>
+

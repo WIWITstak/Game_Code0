@@ -1,0 +1,30 @@
+'use strict';
+const { app, BrowserWindow } = require('electron');
+const fs = require('fs'); const path = require('path');
+const server = require('../server');
+const OUT = path.join(__dirname, 'smoke'); fs.mkdirSync(OUT, { recursive: true });
+app.commandLine.appendSwitch('disable-http-cache');
+const IGN = /Insecure Content-Security-Policy|Electron Security Warning/;
+app.whenReady().then(() => server.start(0, async (port) => {
+  const win = new BrowserWindow({ show:false, width:1600, height:900, webPreferences:{ backgroundThrottling:false } });
+  win.showInactive();
+  const errs = [];
+  win.webContents.on('console-message', (_e,l,m,ln,src)=>{ if(l>=2 && !IGN.test(m)) errs.push('['+(src||'').split('/').pop()+':'+ln+'] '+m); });
+  await win.loadURL('http://127.0.0.1:'+port+'/'); await wait(5000);
+  const run = (js)=>win.webContents.executeJavaScript(`(()=>{const c=window.__gameComponent,s=()=>c.state; ${js}})()`).catch(e=>({err:String(e)}));
+  const shot = async (n)=>fs.writeFileSync(path.join(OUT,n+'.png'), (await win.webContents.capturePage()).toPNG());
+  const clearStory = async () => { for(let i=0;i<8;i++){ const a=await run(`return !!(s().story&&s().story.activeId)`); if(!a) break; await run(`c.storyChoose(0)`); await wait(300);} };
+  await run(`c.startGame()`); await wait(1200); await clearStory(); await wait(400);
+  const r=[];
+  await run(`c.setState({activePanel:'build', selectedPlacedId:null})`); await wait(400);
+  await shot('sel-1-buildpanel');
+  await run(`const b=s().placed.find(x=>x.mono==='HS'); c.selectPlaced(b)`); await wait(500);
+  r.push(['selected', await run(`return {activePanel:s().activePanel, sel:s().selectedPlacedId, name:s().selectedBuilding.name}`)]);
+  await shot('sel-2-selected');
+  await run(`c.togglePanel('build')`); await wait(500);
+  r.push(['reopen build', await run(`return {activePanel:s().activePanel, sel:s().selectedPlacedId}`)]);
+  await shot('sel-3-reopen');
+  console.log(JSON.stringify({r, errs}, null, 2));
+  app.quit();
+}));
+function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }

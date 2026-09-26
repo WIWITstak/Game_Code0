@@ -1,0 +1,156 @@
+[
+  {
+    "name": "01-launch",
+    "newErrors": [],
+    "probe": {
+      "launched": false,
+      "panel": "build",
+      "overlay": null,
+      "visiblePanels": 0,
+      "buttons": 49
+    }
+  },
+  {
+    "name": "02-hud",
+    "newErrors": [],
+    "probe": {
+      "launched": true,
+      "panel": "build",
+      "overlay": null,
+      "visiblePanels": 0,
+      "buttons": 43
+    }
+  },
+  {
+    "name": "03-build",
+    "newErrors": [],
+    "probe": {
+      "launched": true,
+      "panel": "build",
+      "overlay": null,
+      "visiblePanels": 0,
+      "buttons": 43
+    }
+  },
+  {
+    "name": "04-city",
+    "newErrors": [],
+    "probe": {
+      "launched": true,
+      "panel": "city",
+      "overlay": null,
+      "visiblePanels": 0,
+      "buttons": 29
+    }
+  },
+  {
+    "name": "05-trade",
+    "newErrors": [],
+    "probe": {
+      "launched": true,
+      "panel": "trade",
+      "overlay": null,
+      "visiblePanels": 0,
+      "buttons": 30
+    }
+  },
+  {
+    "name": "06-fleet",
+    "newErrors": [],
+    "probe": {
+      "launched": true,
+      "panel": "fleet",
+      "overlay": null,
+      "visiblePanels": 0,
+      "buttons": 30
+    }
+  },
+  {
+    "name": "07-tech",
+    "newErrors": [],
+    "probe": {
+      "launched": true,
+      "panel": null,
+      "overlay": "tech",
+      "visiblePanels": 0,
+      "buttons": 62
+    }
+  },
+  {
+    "name": "08-diplomacy",
+    "newErrors": [],
+    "probe": {
+      "launched": true,
+      "panel": null,
+      "overlay": "diplomacy",
+      "visiblePanels": 0,
+      "buttons": 38
+    }
+  },
+  {
+    "name": "09-codex",
+    "newErrors": [],
+    "probe": {
+      "launched": true,
+      "panel": null,
+      "overlay": "codex",
+      "visiblePanels": 0,
+      "buttons": 31
+    }
+  },
+  {
+    "name": "10-map",
+    "newErrors": [],
+    "probe": {
+      "launched": true,
+      "panel": null,
+      "overlay": "map",
+      "visiblePanels": 0,
+      "buttons": 34
+    }
+  },
+  {
+    "name": "11-system",
+    "newErrors": [],
+    "probe": {
+      "launched": true,
+      "panel": null,
+      "overlay": "system",
+      "visiblePanels": 0,
+      "buttons": 37
+    }
+  },
+  {
+    "name": "12-notif",
+    "newErrors": [],
+    "probe": {
+      "launched": true,
+      "panel": null,
+      "overlay": null,
+      "visiblePanels": 0,
+      "buttons": 29
+    }
+  },
+  {
+    "name": "13-menu",
+    "newErrors": [],
+    "probe": {
+      "launched": true,
+      "panel": null,
+      "overlay": null,
+      "visiblePanels": 0,
+      "buttons": 36
+    }
+  },
+  {
+    "name": "14-back-hud",
+    "newErrors": [],
+    "probe": {
+      "launched": true,
+      "panel": null,
+      "overlay": null,
+      "visiblePanels": 0,
+      "buttons": 28
+    }
+  }
+]

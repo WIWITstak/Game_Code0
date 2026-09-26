@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>MARS AWAKENING — редакторы</title>
+<style>
+  :root {
+    --bg: #14181c; --bg2: #1b2126; --panel: #202830; --border: #2c363f;
+    --text: #dfe6ec; --muted: #8a97a3; --accent: #0bc6ab;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 -apple-system, Segoe UI, Roboto, sans-serif; }
+  body { display: flex; flex-direction: column; align-items: center; padding: 60px 24px; }
+
+  h1 { font-size: 20px; font-weight: 700; color: var(--accent); margin: 0 0 6px; }
+  .subtitle { color: var(--muted); font-size: 13px; margin: 0 0 40px; text-align: center; max-width: 560px; }
+
+  .editor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; width: 100%; max-width: 960px; }
+
+  .editor-card {
+    display: block; background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; text-decoration: none; color: inherit; transition: border-color 0.15s, transform 0.15s;
+  }
+  .editor-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .editor-card-icon {
+    width: 40px; height: 40px; border-radius: 10px; background: rgba(11,198,171,0.12); color: var(--accent);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; margin-bottom: 14px;
+  }
+  .editor-card-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+  .editor-card-desc { color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+  .editor-card.soon { opacity: 0.45; cursor: default; pointer-events: none; }
+  .editor-card.soon .editor-card-icon { background: rgba(255,255,255,0.06); color: var(--muted); }
+  .soon-badge { display: inline-block; margin-left: 8px; font-size: 10px; font-weight: 600; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; vertical-align: middle; }
+</style>
+</head>
+<body>
+  <h1>MARS AWAKENING — Редакторы</h1>
+  <p class="subtitle">Инструменты для правки данных игры напрямую в исходниках, без ручного редактирования JS. Каждое сохранение делает бэкап в <code>.storyedit-backup/</code>.</p>
+  <div class="editor-grid">
+    <a class="editor-card" href="editor-dialogues.html">
+      <div class="editor-card-icon">Д</div>
+      <div class="editor-card-title">Диалоги и задания</div>
+      <div class="editor-card-desc">Сюжетные и побочные диалоги, спикеры, задания колонии с наградами, привязка диалогов к заданиям, обзор флагов сюжета.</div>
+    </a>
+    <a class="editor-card" href="editor-buildings.html">
+      <div class="editor-card-icon">З</div>
+      <div class="editor-card-title">Здания</div>
+      <div class="editor-card-desc">Каталог построек по категориям — стоимость, персонал, выход ресурса, месторождения, цепочки производства, склады, коннекторы и прочие параметры.</div>
+    </a>
+    <a class="editor-card" href="editor-tech.html">
+      <div class="editor-card-icon">Т</div>
+      <div class="editor-card-title">Технологии</div>
+      <div class="editor-card-desc">Дерево исследований по категориям — требования, стоимость CR/RP, какие здания открывает, бонусы колонии, положение в дереве.</div>
+    </a>
+  </div>
+</body>
+</html>
